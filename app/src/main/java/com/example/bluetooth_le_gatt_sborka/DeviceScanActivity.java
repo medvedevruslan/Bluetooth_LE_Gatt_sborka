@@ -8,6 +8,7 @@ import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
+import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.content.Intent;
@@ -74,9 +75,6 @@ public class DeviceScanActivity extends ListActivity {
         final BluetoothManager bluetoothManager = (BluetoothManager)getSystemService(Context.BLUETOOTH_SERVICE);
         Log.d(TAG, "Подключение к блютуз менеджеру");
         bluetoothAdapter = bluetoothManager.getAdapter();
-
-
-
 
         //Проверяет, поддерживается ли Bluetooth на устройстве.
         if (bluetoothAdapter == null) {
@@ -318,8 +316,37 @@ public class DeviceScanActivity extends ListActivity {
                 bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
                 bleScanSettings = new ScanSettings.Builder().setScanMode(2).build();
             }
+11
+            ScanCallback scanCallback = new ScanCallback() {
+                @Override
+                public void onScanResult(int callbackType, ScanResult result) {
+                    super.onScanResult(callbackType, result);
+                    Log.i(TAG, "onScanResult. callbackType is :" + callbackType + ",name:" +
+                            result.getDevice().getName() + ",address:" +
+                            result.getDevice().getAddress() + ",rssi:" + result.getRssi());
 
 
+                    if (result.getDevice().getName() != null && result.getDevice().getAddress() != null) {
+                        String name = result.getDevice().getName();
+
+
+
+                    }
+
+
+
+                }
+
+                @Override
+                public void onBatchScanResults(List<ScanResult> results) {
+                    super.onBatchScanResults(results);
+                }
+
+                @Override
+                public void onScanFailed(int errorCode) {
+                    super.onScanFailed(errorCode);
+                }
+            };
 
             if (stopOrStartTask.equals("start")) {
                 Log.d(TAG, "begin to scan bluetooth devices...");
@@ -360,6 +387,11 @@ public class DeviceScanActivity extends ListActivity {
 
 
 
+
+
+
+
+
     // Device scan callback KITKAT and below.
     private BluetoothAdapter.LeScanCallback lowEnergyScanCallback = new BluetoothAdapter.LeScanCallback() {
 
@@ -385,6 +417,8 @@ public class DeviceScanActivity extends ListActivity {
             });
         }
     };
+
+
 
     static class ViewHolder {
         TextView deviceName;
