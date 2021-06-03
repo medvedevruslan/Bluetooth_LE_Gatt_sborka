@@ -5,9 +5,14 @@ import android.app.ListActivity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanFilter;
+import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
@@ -22,6 +27,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -34,6 +41,10 @@ public class DeviceScanActivity extends ListActivity {
     private BluetoothAdapter bluetoothAdapter;
     private boolean checkScanning;
     private Handler handler;
+    int count;
+
+    BluetoothLeScanner bluetoothLeScanner;
+    ScanSettings bleScanSettings = null;
 
     private static final int REQUEST_ENABLE_BT = 1;
 
@@ -42,9 +53,10 @@ public class DeviceScanActivity extends ListActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // getActionBar().setTitle(R.string.title_devices);
         getActionBar().setTitle("Scan Bluetooth Low Energy Devices");
         handler = new Handler();
-
+        Log.d(TAG, "onCreate");
         //Используйте эту проверку, чтобы определить, поддерживается ли BLE на устройстве.
         // Затем вы можете выборочно отключить функции, связанные с BLE.
         if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
@@ -52,6 +64,8 @@ public class DeviceScanActivity extends ListActivity {
                     Toast.LENGTH_SHORT).show();
             finish();
             return;
+        } else {
+            Log.d(TAG, "Bluetooth Low Energy поддерживается на данном устройстве");
         }
 
 
@@ -60,6 +74,9 @@ public class DeviceScanActivity extends ListActivity {
         final BluetoothManager bluetoothManager = (BluetoothManager)getSystemService(Context.BLUETOOTH_SERVICE);
         Log.d(TAG, "Подключение к блютуз менеджеру");
         bluetoothAdapter = bluetoothManager.getAdapter();
+
+
+
 
         //Проверяет, поддерживается ли Bluetooth на устройстве.
         if (bluetoothAdapter == null) {
@@ -71,6 +88,7 @@ public class DeviceScanActivity extends ListActivity {
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        Log.d(TAG, "onCreateOptionsMenu");
         getMenuInflater().inflate(R.menu.main, menu);
         if (!checkScanning) {
             menu.findItem(R.id.menu_stop).setVisible(false);
@@ -86,6 +104,7 @@ public class DeviceScanActivity extends ListActivity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem menuItem) {
+        Log.d(TAG, "onOptionsItemSelected");
         switch (menuItem.getItemId()) {
             case R.id.menu_scan:
                 bleDevicesListAdapter.clearList();
@@ -100,9 +119,11 @@ public class DeviceScanActivity extends ListActivity {
 
     @Override
     protected void onResume() {
+        Log.d(TAG, "onResume");
+
         super.onResume();
 
-        //Убедитесь, что на устройстве включен Bluetooth. Если Bluetooth в настоящее время не включен,
+        // Убедитесь, что на устройстве включен Bluetooth. Если Bluetooth в настоящее время не включен,
         // активируйте намерение отобразить диалоговое окно с просьбой предоставить пользователю разрешение
         // на его включение
         if (!bluetoothAdapter.isEnabled()) {
@@ -120,7 +141,7 @@ public class DeviceScanActivity extends ListActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-
+        Log.d(TAG, "onActivityResult");
         // Пользователь решил не включать Bluetooth
         if (requestCode == REQUEST_ENABLE_BT && resultCode == Activity.RESULT_CANCELED) {
             finish();;
@@ -131,6 +152,7 @@ public class DeviceScanActivity extends ListActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        Log.d(TAG, "onPause");
         scanLowEnergyDevice(false);
         bleDevicesListAdapter.clearList();
     }
@@ -147,31 +169,58 @@ public class DeviceScanActivity extends ListActivity {
         intent.putExtra(DeviceControlActivity.EXTRAS_DEVICE_ADDRESS, device.getAddress());
         if (checkScanning) {
             //останавливается поиск
-            bluetoothAdapter.stopLeScan(lowEnergyScanCallback);
+            startOrStopScanBle("stop");
+
+            //bluetoothAdapter.stopLeScan(lowEnergyScanCallback);
             checkScanning = false;
         }
         startActivity(intent);
     }
 
-    private void scanLowEnergyDevice(final boolean enable) {
-        Log.d(TAG, "идет поиск устройств");
-        if (enable) {
+    private void scanLowEnergyDevice(final boolean check) {
+
+        // если true то сканирование идёт, а после запускается handler.postDelayed с остановкой сканирования
+        if (check) {
+
             // Останавливает сканирование по истечении заданного периода сканирования.
             // PostDelayed - задержка по времени
             handler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
                     checkScanning = false;
-                    bluetoothAdapter.stopLeScan(lowEnergyScanCallback);
+                    startOrStopScanBle("stop");
+                    Log.d(TAG, " scanLowEnergyDevice.stopLeScan" + check);
+                    // invalidateOptionsMenu - перерисовка ActionBar
                     invalidateOptionsMenu();
                 }
             }, SCAN_PERIOD);
 
+            // отсчет времени в логах посекундно
+            Thread threadStopwatch10Seconds = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    count = 1;
+                    for (count = 1; count <= 10; count ++ ) {
+                        try {
+                            TimeUnit.SECONDS.sleep(1);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        Log.d(TAG, "Время : " + count + " сек");
+                    }
+                }
+            });threadStopwatch10Seconds.start();
+
+
             checkScanning = true;
-            bluetoothAdapter.startLeScan(lowEnergyScanCallback);
+            startOrStopScanBle("start");
+            Log.d(TAG, " scanLowEnergyDevice.startLeScan" + check);
+
         } else {
             checkScanning = false;
-            bluetoothAdapter.stopLeScan(lowEnergyScanCallback);
+            startOrStopScanBle("stop");
+            Log.d(TAG, " scanLowEnergyDevice.stopLeScan" + check + "№2");
+
         }
         invalidateOptionsMenu();
     }
@@ -191,7 +240,7 @@ public class DeviceScanActivity extends ListActivity {
             Log.d(TAG, "создание BleDevicesListAdapter");
             lowEnergyDevices = new ArrayList<BluetoothDevice>();
             layoutInflater = DeviceScanActivity.this.getLayoutInflater();
-            Log.d(TAG, String.valueOf(DeviceScanActivity.this.getLayoutInflater()));
+            Log.d(TAG, String.valueOf(DeviceScanActivity.this.getLayoutInflater()) + " BleDevicesListAdapter создан");
         }
 
         public void addDeviceToList(BluetoothDevice device) {
@@ -200,6 +249,9 @@ public class DeviceScanActivity extends ListActivity {
             if (!lowEnergyDevices.contains(device)) {
                 lowEnergyDevices.add(device);
             }
+
+            Log.d(TAG, String.valueOf(device));
+
         }
 
         public BluetoothDevice getDeviceByPosition(int position) {
@@ -207,6 +259,8 @@ public class DeviceScanActivity extends ListActivity {
         }
 
         public void clearList() {
+            Log.d(TAG, "size ArrayList ble devices = " + lowEnergyDevices.size());
+            Log.d(TAG, "clearList");
             lowEnergyDevices.clear();
         }
 
@@ -228,6 +282,9 @@ public class DeviceScanActivity extends ListActivity {
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             ViewHolder viewHolder;
+
+            Log.d(TAG, "gitView");
+
 
             //Общий код оптимизации ListView.
             if (convertView == null) {
@@ -253,13 +310,73 @@ public class DeviceScanActivity extends ListActivity {
         }
     }
 
+
+
+    public void startOrStopScanBle(String stopOrStartTask) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && bluetoothAdapter != null) {
+            if (bluetoothLeScanner == null) {
+                bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
+                bleScanSettings = new ScanSettings.Builder().setScanMode(2).build();
+            }
+
+
+
+            if (stopOrStartTask.equals("start")) {
+                Log.d(TAG, "begin to scan bluetooth devices...");
+                checkScanning = true;
+
+                try {
+                    bluetoothLeScanner.startScan((List<ScanFilter>) null, bleScanSettings, scanCallback);
+                } catch (Exception e) {
+                    Log.e(TAG, "startScan error." + e.getMessage());
+                }
+
+            } else {
+
+                Log.d(TAG, "stop to scan bluetooth devices.");
+                checkScanning = false;
+                try {
+                    this.bluetoothLeScanner.stopScan(scanCallback);
+                } catch (Exception e2) {
+                    Log.e(TAG, "stopScan error." + e2.getMessage());
+                }
+            }
+
+
+
+
+        } else if (bluetoothAdapter != null) {
+            if (stopOrStartTask.equals("start")) {
+                bluetoothAdapter.startLeScan(lowEnergyScanCallback);
+            } else {
+                bluetoothAdapter.stopLeScan(lowEnergyScanCallback);
+            }
+        } else {
+            Log.e(TAG, "bluetoothAdapter = null");
+        }
+    }
+
+
+
+
+
+    // Device scan callback KITKAT and below.
     private BluetoothAdapter.LeScanCallback lowEnergyScanCallback = new BluetoothAdapter.LeScanCallback() {
+
+        /**
+         * @param device название устройства
+         * @param rssi уровень сигнала, чем ниже значение, тем хуже сигнал
+         * @param scanRecord Содержание записи advertising, предлагаемой удаленным устройством.
+         */
         @Override
         public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
+            Log.d(TAG, " onLeScan LeScanCallback lowEnergyScanCallback");
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
+                    Log.d(TAG, "adding device " + device);
                     bleDevicesListAdapter.addDeviceToList(device);
+                    Log.d(TAG, "lowEnergyScanCallback");
 
                     //уведомляет прикрепленных наблюдателей, что базовые данные были изменены,
                     //и любое представление, отражающее набор данных, должно обновиться.
@@ -273,4 +390,6 @@ public class DeviceScanActivity extends ListActivity {
         TextView deviceName;
         TextView deviceAddress;
     }
+
+
 }
