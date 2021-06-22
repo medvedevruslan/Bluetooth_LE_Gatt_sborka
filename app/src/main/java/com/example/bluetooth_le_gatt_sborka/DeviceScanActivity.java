@@ -1,5 +1,6 @@
 package com.example.bluetooth_le_gatt_sborka;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.ListActivity;
 import android.bluetooth.BluetoothAdapter;
@@ -16,6 +17,7 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.ParcelUuid;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -43,9 +45,11 @@ public class DeviceScanActivity extends ListActivity {
     private boolean checkScanning;
     private Handler handler;
     int count;
+    private int permissionCheck;
 
     BluetoothLeScanner bluetoothLeScanner;
     ScanSettings bleScanSettings = null;
+
 
     private static final int REQUEST_ENABLE_BT = 1;
 
@@ -82,6 +86,15 @@ public class DeviceScanActivity extends ListActivity {
             finish();
             return;
         }
+
+        if (Build.VERSION.SDK_INT>=23) {
+            checkLocationPermission();
+        }
+    }
+
+    public void checkLocationPermission() {
+        111
+
     }
 
     @Override
@@ -309,44 +322,78 @@ public class DeviceScanActivity extends ListActivity {
     }
 
 
-
     public void startOrStopScanBle(String stopOrStartTask) {
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && bluetoothAdapter != null) {
+            Log.d(TAG, "VERSION.SDK_INT: " + String.valueOf(Build.VERSION.SDK_INT) + " check#1");
             if (bluetoothLeScanner == null) {
                 bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
                 bleScanSettings = new ScanSettings.Builder().setScanMode(2).build();
             }
-11
+
             ScanCallback scanCallback = new ScanCallback() {
+
+
+
                 @Override
-                public void onScanResult(int callbackType, ScanResult result) {
-                    super.onScanResult(callbackType, result);
-                    Log.i(TAG, "onScanResult. callbackType is :" + callbackType + ",name:" +
-                            result.getDevice().getName() + ",address:" +
-                            result.getDevice().getAddress() + ",rssi:" + result.getRssi());
+                public void onScanResult(int callbackType, ScanResult scanResult) {
+                    super.onScanResult(callbackType, scanResult);
 
+                    if (scanResult.getDevice().getName() != null && scanResult.getDevice().getAddress() != null) {
 
-                    if (result.getDevice().getName() != null && result.getDevice().getAddress() != null) {
-                        String name = result.getDevice().getName();
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                Log.d(TAG, "onScanResult. callbackType is :" + callbackType + ",name: " +
+                                        scanResult.getDevice().getName() + ",address: " +
+                                        scanResult.getDevice().getAddress() + ",rssi: " + scanResult.getRssi());
 
+                                BluetoothDevice bluetoothDevice = scanResult.getDevice();
+                                bleDevicesListAdapter.addDeviceToList(bluetoothDevice);
 
-
+                                //уведомляет прикрепленных наблюдателей, что базовые данные были изменены,
+                                //и любое представление, отражающее набор данных, должно обновиться.
+                                bleDevicesListAdapter.notifyDataSetChanged();
+                            }
+                        });
                     }
-
-
-
                 }
+
+
 
                 @Override
                 public void onBatchScanResults(List<ScanResult> results) {
                     super.onBatchScanResults(results);
+                    Log.d(TAG, "onBatchScanResults");
+                    for (ScanResult sr : results) {
+                        Log.i("ScanResult - Results: ", sr.toString());
+                    }
                 }
+
+
+
+
+
+
+
+
+
+
+
 
                 @Override
                 public void onScanFailed(int errorCode) {
                     super.onScanFailed(errorCode);
-                }
+                        Log.e(TAG, "onScanFailed, code is : " + errorCode);
+                    }
             };
+
+
+
+
+
+
+
 
             if (stopOrStartTask.equals("start")) {
                 Log.d(TAG, "begin to scan bluetooth devices...");
@@ -369,13 +416,12 @@ public class DeviceScanActivity extends ListActivity {
                 }
             }
 
-
-
-
         } else if (bluetoothAdapter != null) {
+            Log.d(TAG, "VERSION.SDK_INT: " + String.valueOf(Build.VERSION.SDK_INT) + " check#2");
+
             if (stopOrStartTask.equals("start")) {
                 bluetoothAdapter.startLeScan(lowEnergyScanCallback);
-            } else {
+            } else if (stopOrStartTask.equals("stop")) {
                 bluetoothAdapter.stopLeScan(lowEnergyScanCallback);
             }
         } else {
@@ -384,13 +430,10 @@ public class DeviceScanActivity extends ListActivity {
     }
 
 
-
-
-
-
-
-
-
+    static class ViewHolder {
+        TextView deviceName;
+        TextView deviceAddress;
+    }
 
     // Device scan callback KITKAT and below.
     private BluetoothAdapter.LeScanCallback lowEnergyScanCallback = new BluetoothAdapter.LeScanCallback() {
@@ -417,13 +460,4 @@ public class DeviceScanActivity extends ListActivity {
             });
         }
     };
-
-
-
-    static class ViewHolder {
-        TextView deviceName;
-        TextView deviceAddress;
-    }
-
-
 }
