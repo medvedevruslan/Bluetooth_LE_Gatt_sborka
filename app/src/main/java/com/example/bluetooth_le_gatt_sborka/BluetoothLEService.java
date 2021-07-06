@@ -220,14 +220,20 @@ public class BluetoothLEService extends Service {
         bluetoothGatt.readCharacteristic(characteristic);
     }
 
+
+/*    public boolean writecharacterisctir() {
+        bluetoothGatt.writeCharacteristic();
+        return true;
+    }*/
+
     /**
      * Включает или отключает уведомление о заданной характеристике.
      * @param characteristic характеристики
-     * @param enabled Если true, включить уведомление
+     * @param enabled        Если true, включить уведомление
      */
     public void setCharacteristicNotification(BluetoothGattCharacteristic characteristic, boolean enabled) {
         if (bluetoothAdapter == null || bluetoothGatt == null) {
-            Log.d(TAG ,"BluetoothAdapter не инициализирован");
+            Log.d(TAG, "BluetoothAdapter не инициализирован");
             return;
         }
         bluetoothGatt.setCharacteristicNotification(characteristic, enabled);
@@ -248,8 +254,6 @@ public class BluetoothLEService extends Service {
     }
 
 
-
-
     public class LocalBinder extends Binder {
         BluetoothLEService getService() {
             return BluetoothLEService.this;
@@ -267,7 +271,7 @@ public class BluetoothLEService extends Service {
         // чтобы ресурсы были очищены должным образом.
         // В этом конкретном примере close () вызывается, когда пользовательский интерфейс отключается от службы.
         close();
-        return  super.onUnbind(intent);
+        return super.onUnbind(intent);
     }
 
 

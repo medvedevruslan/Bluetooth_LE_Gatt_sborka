@@ -1,5 +1,6 @@
 package com.example.bluetooth_le_gatt_sborka;
 
+import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.ListActivity;
@@ -26,8 +27,14 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.ListView;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+import com.google.android.material.snackbar.Snackbar;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,7 +56,7 @@ public class DeviceScanActivity extends ListActivity {
 
     BluetoothLeScanner bluetoothLeScanner;
     ScanSettings bleScanSettings = null;
-
+    List<ScanFilter> bleScanFilters = null;
 
     private static final int REQUEST_ENABLE_BT = 1;
 
@@ -76,7 +83,7 @@ public class DeviceScanActivity extends ListActivity {
 
         //Инициализирует адаптер Bluetooth.
         // Для уровня API 18 и выше получите ссылку на BluetoothAdapter через BluetoothManager
-        final BluetoothManager bluetoothManager = (BluetoothManager)getSystemService(Context.BLUETOOTH_SERVICE);
+        final BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         Log.d(TAG, "Подключение к блютуз менеджеру");
         bluetoothAdapter = bluetoothManager.getAdapter();
 
@@ -87,14 +94,30 @@ public class DeviceScanActivity extends ListActivity {
             return;
         }
 
-        if (Build.VERSION.SDK_INT>=23) {
+        if (Build.VERSION.SDK_INT >= 23) {
             checkLocationPermission();
         }
     }
 
     public void checkLocationPermission() {
-        111
+        permissionCheck = ContextCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_COARSE_LOCATION);
 
+        switch (permissionCheck) {
+            case PackageManager.PERMISSION_GRANTED:
+                break;
+
+            case PackageManager.PERMISSION_DENIED:
+                if (ActivityCompat.shouldShowRequestPermissionRationale(this,
+                        android.Manifest.permission.ACCESS_COARSE_LOCATION)) {
+                    Toast.makeText(this, "Требуется доступ к местоположению, чтобы показывать " +
+                            "устройства Bluetooth поблизости", Toast.LENGTH_SHORT).show();
+                } else {
+                    ActivityCompat.requestPermissions(this, new String[]{
+                            Manifest.permission.ACCESS_COARSE_LOCATION}, 1);
+                }
+                break;
+        }
     }
 
     @Override
@@ -155,7 +178,8 @@ public class DeviceScanActivity extends ListActivity {
         Log.d(TAG, "onActivityResult");
         // Пользователь решил не включать Bluetooth
         if (requestCode == REQUEST_ENABLE_BT && resultCode == Activity.RESULT_CANCELED) {
-            finish();;
+            finish();
+            ;
             return;
         }
     }
@@ -200,14 +224,14 @@ public class DeviceScanActivity extends ListActivity {
                 public void run() {
                     checkScanning = false;
                     startOrStopScanBle("stop");
-                    Log.d(TAG, " scanLowEnergyDevice.stopLeScan" + check);
+                    Log.d(TAG, " scanLowEnergyDevice.stopLeScan: " + check);
                     // invalidateOptionsMenu - перерисовка ActionBar
                     invalidateOptionsMenu();
                 }
             }, SCAN_PERIOD);
 
             // отсчет времени в логах посекундно
-            Thread threadStopwatch10Seconds = new Thread(new Runnable() {
+/*            Thread threadStopwatch10Seconds = new Thread(new Runnable() {
                 @Override
                 public void run() {
                     count = 1;
@@ -220,12 +244,11 @@ public class DeviceScanActivity extends ListActivity {
                         Log.d(TAG, "Время : " + count + " сек");
                     }
                 }
-            });threadStopwatch10Seconds.start();
-
+            });threadStopwatch10Seconds.start();*/
 
             checkScanning = true;
             startOrStopScanBle("start");
-            Log.d(TAG, " scanLowEnergyDevice.startLeScan" + check);
+            Log.d(TAG, " scanLowEnergyDevice.startLeScan " + check);
 
         } else {
             checkScanning = false;
@@ -294,8 +317,6 @@ public class DeviceScanActivity extends ListActivity {
         public View getView(int position, View convertView, ViewGroup parent) {
             ViewHolder viewHolder;
 
-            Log.d(TAG, "gitView");
-
 
             //Общий код оптимизации ListView.
             if (convertView == null) {
@@ -305,7 +326,7 @@ public class DeviceScanActivity extends ListActivity {
                 viewHolder.deviceName = convertView.findViewById(R.id.device_name);
                 convertView.setTag(viewHolder);
             } else {
-                viewHolder = (ViewHolder)convertView.getTag();
+                viewHolder = (ViewHolder) convertView.getTag();
             }
 
             BluetoothDevice device = lowEnergyDevices.get(position);
@@ -321,19 +342,18 @@ public class DeviceScanActivity extends ListActivity {
         }
     }
 
-
     public void startOrStopScanBle(String stopOrStartTask) {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && bluetoothAdapter != null) {
             Log.d(TAG, "VERSION.SDK_INT: " + String.valueOf(Build.VERSION.SDK_INT) + " check#1");
             if (bluetoothLeScanner == null) {
                 bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
+                // настройки для поиска термометра, взяты из приложения Microlife
                 bleScanSettings = new ScanSettings.Builder().setScanMode(2).build();
+                bleScanFilters = new ArrayList();
             }
 
             ScanCallback scanCallback = new ScanCallback() {
-
-
 
                 @Override
                 public void onScanResult(int callbackType, ScanResult scanResult) {
@@ -344,7 +364,7 @@ public class DeviceScanActivity extends ListActivity {
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                Log.d(TAG, "onScanResult. callbackType is :" + callbackType + ",name: " +
+                                Log.d(TAG, "onScanResult. callbackType is : " + callbackType + ",name: " +
                                         scanResult.getDevice().getName() + ",address: " +
                                         scanResult.getDevice().getAddress() + ",rssi: " + scanResult.getRssi());
 
@@ -359,41 +379,22 @@ public class DeviceScanActivity extends ListActivity {
                     }
                 }
 
-
-
                 @Override
                 public void onBatchScanResults(List<ScanResult> results) {
                     super.onBatchScanResults(results);
                     Log.d(TAG, "onBatchScanResults");
+                    Log.d(TAG, "onBatchScanResults, results size:" + results.size());
                     for (ScanResult sr : results) {
-                        Log.i("ScanResult - Results: ", sr.toString());
+                        Log.d(TAG, "onBatchScanResults results:  " + sr.toString());
                     }
                 }
-
-
-
-
-
-
-
-
-
-
-
 
                 @Override
                 public void onScanFailed(int errorCode) {
                     super.onScanFailed(errorCode);
-                        Log.e(TAG, "onScanFailed, code is : " + errorCode);
-                    }
+                    Log.e(TAG, "onScanFailed, code is : " + errorCode);
+                }
             };
-
-
-
-
-
-
-
 
             if (stopOrStartTask.equals("start")) {
                 Log.d(TAG, "begin to scan bluetooth devices...");
@@ -401,6 +402,7 @@ public class DeviceScanActivity extends ListActivity {
 
                 try {
                     bluetoothLeScanner.startScan((List<ScanFilter>) null, bleScanSettings, scanCallback);
+                    //bluetoothLeScanner.startScan((List<ScanFilter>) null, bleScanSettings, scanCallback);
                 } catch (Exception e) {
                     Log.e(TAG, "startScan error." + e.getMessage());
                 }
