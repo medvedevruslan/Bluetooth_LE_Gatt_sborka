@@ -30,7 +30,7 @@ public class BluetoothLEService extends Service {
     private BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
     private String bluetoothDeviceAddress;
-    private BluetoothGatt bluetoothGatt;
+    protected BluetoothGatt bluetoothGatt;
     private int connectionStatus = STATE_DISCONNECTED;
 
     private static final int STATE_DISCONNECTED = 0;
@@ -46,7 +46,6 @@ public class BluetoothLEService extends Service {
 
     //UUID для прибора сердечного ритма
     public final static UUID UUID_HEART_RATE_MEASUREMENT = UUID.fromString(SampleGattAttributes.HEART_RATE_MEASUREMENT);
-
 
     //Реализация методов обратного вызова для событий GATT,
     //о которых заботится приложение. Например, изменение подключения и обнаружение служб.
@@ -82,7 +81,7 @@ public class BluetoothLEService extends Service {
             }
         }
 
-        //обратный вызов докладывающий об рузельтате чтения зарактеристик ble
+        // обратный вызов докладывающий об рузельтате чтения зарактеристик ble
         @Override
         public void onCharacteristicRead(BluetoothGatt bluetoothGatt,
                                          BluetoothGattCharacteristic characteristic, int status) {
@@ -91,7 +90,15 @@ public class BluetoothLEService extends Service {
             }
         }
 
-        //братный вызов об изменении характеристик ble
+
+        @Override
+        public void onCharacteristicWrite(BluetoothGatt gatt,
+                                          BluetoothGattCharacteristic characteristic, int status) {
+            if (status == BluetoothGatt.GATT_SUCCESS)
+            broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
+        }
+
+        // обратный вызов об изменении характеристик ble
         @Override
         public void onCharacteristicChanged(BluetoothGatt bluetoothGatt, BluetoothGattCharacteristic characteristic) {
             broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
@@ -120,9 +127,8 @@ public class BluetoothLEService extends Service {
                 Log.d(TAG, "Heart rate format UINT8.");
             }
 
-
             final int heartRate = characteristic.getIntValue(format, 1);
-            Log.d(TAG, String.format("Received heart rate: %d", heartRate));
+            Log.d(TAG, "properties from Heart Rate: " + characteristic + " | " + String.format("Received heartrate: %d", heartRate));
             intent.putExtra(EXTRA_DATA, String.valueOf(heartRate));
 
         } else {
@@ -221,13 +227,14 @@ public class BluetoothLEService extends Service {
     }
 
 
-/*    public boolean writecharacterisctir() {
+/*    public boolean writecharacterisctic() {
         bluetoothGatt.writeCharacteristic();
         return true;
     }*/
 
     /**
      * Включает или отключает уведомление о заданной характеристике.
+     *
      * @param characteristic характеристики
      * @param enabled        Если true, включить уведомление
      */

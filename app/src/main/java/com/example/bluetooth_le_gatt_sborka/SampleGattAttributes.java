@@ -50,9 +50,11 @@ public class SampleGattAttributes {
 
         attributes.put("00001800-0000-1000-8000-00805f9b34fb", "Общий доступ"); // Generic Access (service)
         attributes.put("00002a00-0000-1000-8000-00805f9b34fb", "Имя устройства"); // Device Name
-        attributes.put("00002a01-0000-1000-8000-00805f9b34fb", "Появление"); // Appearance
+        attributes.put("00002a01-0000-1000-8000-00805f9b34fb", "Появление или внешний вид"); // Appearance
         attributes.put("00002a04-0000-1000-8000-00805f9b34fb", "Параметры предпочтительного периферийного подключения"); // Peripheral Preferred Connection Parameters
 
+        attributes.put("00001801-0000-1000-8000-00805f9b34fb", "Общий атрибут"); // Generic Attribute (service)
+        attributes.put("00002a05-0000-1000-8000-00805f9b34fb", "Сервис изменен"); // Service Changed
 
         // Sample Characteristics.
         attributes.put(HEART_RATE_MEASUREMENT, "Измерение пульса"); // Heart Rate Measurement

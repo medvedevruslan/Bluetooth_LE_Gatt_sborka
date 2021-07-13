@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import static android.bluetooth.BluetoothGattCharacteristic.*;
+
 /**
  * Для данного устройства BLE это действие предоставляет пользовательский интерфейс для подключения,
  * отображения данных и отображения служб и характеристик GATT,
@@ -38,7 +40,7 @@ public class DeviceControlActivity extends Activity {
     public static final String EXTRAS_DEVICE_ADDRESS = "DEVICE_ADDRESS";
 
     private TextView connectionStatus;
-    private TextView dataField;
+    private TextView dataField, writeTypeField;
     private String deviceName;
     private String deviceAddress;
     private ExpandableListView gattServicesList;
@@ -56,7 +58,7 @@ public class DeviceControlActivity extends Activity {
 
         @Override
         public void onServiceConnected(ComponentName name, IBinder service) {
-            bluetoothLEService = ((BluetoothLEService.LocalBinder)service).getService();
+            bluetoothLEService = ((BluetoothLEService.LocalBinder) service).getService();
             if (!bluetoothLEService.initialize()) {
                 Log.d(TAG, "Невозможно инициализировать BluetoothManager");
                 finish();
@@ -84,7 +86,7 @@ public class DeviceControlActivity extends Activity {
         @Override
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
-            if (BluetoothLEService.ACTION_GATT_DISCONNECTED.equals(action)) {
+            if (BluetoothLEService.ACTION_GATT_CONNECTED.equals(action)) {
                 connected = true;
                 updateConnectionState(R.string.connected);
                 invalidateOptionsMenu();
@@ -99,6 +101,11 @@ public class DeviceControlActivity extends Activity {
             } else if (BluetoothLEService.ACTION_DATA_AVAILABLE.equals(action)) {
                 displayData(intent.getStringExtra(BluetoothLEService.EXTRA_DATA));
             }
+
+            if (intent.getStringExtra("writeType") != null) {
+                writeTypeField.setText(intent.getStringExtra("writeType"));
+                Log.d(TAG, "charprop " + intent.getStringExtra("writeType"));
+            }
         }
     };
 
@@ -107,6 +114,7 @@ public class DeviceControlActivity extends Activity {
      * В этом примере демонстрируются функции «Чтение» и «Уведомление».
      * См. Http: d.android.comreferenceandroidbluetoothBluetoothGatt.html
      * для получения полного списка поддерживаемых характерных функций.
+     *
      * @param data
      */
     private final ExpandableListView.OnChildClickListener servicesListListener =
@@ -114,9 +122,13 @@ public class DeviceControlActivity extends Activity {
                 @Override
                 public boolean onChildClick(ExpandableListView parent, View v,
                                             int groupPosition, int childPosition, long id) {
+
                     if (mGattCharacteristics != null) {
                         final BluetoothGattCharacteristic characteristic =
                                 mGattCharacteristics.get(groupPosition).get(childPosition);
+
+                        writeTypeField.setText(writerOrReaderCharacteristic(characteristic));
+
                         final int charaProp = characteristic.getProperties();
                         if ((charaProp | BluetoothGattCharacteristic.PROPERTY_READ) > 0) {
                             //Если есть активное уведомление о характеристике, сначала очистите его,
@@ -127,7 +139,7 @@ public class DeviceControlActivity extends Activity {
                             }
                             bluetoothLEService.readCharacteristic(characteristic);
                         }
-                        if ((charaProp | BluetoothGattCharacteristic.PROPERTY_NOTIFY) > 0 ) {
+                        if ((charaProp | BluetoothGattCharacteristic.PROPERTY_NOTIFY) > 0) {
                             notifyCharacteristic = characteristic;
                             bluetoothLEService.setCharacteristicNotification(characteristic, true);
                         }
@@ -136,6 +148,7 @@ public class DeviceControlActivity extends Activity {
                     return false;
                 }
             };
+
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -152,6 +165,7 @@ public class DeviceControlActivity extends Activity {
         gattServicesList.setOnChildClickListener(servicesListListener);
         connectionStatus = findViewById(R.id.connection_state);
         dataField = findViewById(R.id.data_value);
+        writeTypeField = findViewById(R.id.write_type);
 
         getActionBar().setTitle(deviceName);
         getActionBar().setDisplayHomeAsUpEnabled(true);
@@ -164,7 +178,7 @@ public class DeviceControlActivity extends Activity {
     }
 
     @Override
-    protected  void onResume() {
+    protected void onResume() {
         super.onResume();
 
         // registerReceiver - регистрация приемника BroadcastReceiver
@@ -220,20 +234,10 @@ public class DeviceControlActivity extends Activity {
         return super.onOptionsItemSelected(item);
     }
 
-
-
-
-
-
-
-
     private void displayData(String data) {
-        if ( data != null) dataField.setText(data);
+        if (data != null) dataField.setText(data);
+        Log.d("DAtaCharacteristic", deviceName + ": " + data);
     }
-
-
-
-
 
     private void displayGattServices(List<BluetoothGattService> bluetoothGattServices) {
         if (bluetoothGattServices == null) return;
@@ -277,16 +281,14 @@ public class DeviceControlActivity extends Activity {
                 this,
                 gattServiceData,
                 android.R.layout.simple_expandable_list_item_2,
-                new String[] {LIST_NAME, LIST_UUID},
-                new int [] {android.R.id.text1, android.R.id.text2},
+                new String[]{LIST_NAME, LIST_UUID},
+                new int[]{android.R.id.text1, android.R.id.text2},
                 gattCharacteristicData,
                 android.R.layout.simple_expandable_list_item_2,
-                new String[] {LIST_NAME, LIST_UUID},
+                new String[]{LIST_NAME, LIST_UUID},
                 new int[]{android.R.id.text1, android.R.id.text2}
-                );
-
+        );
         gattServicesList.setAdapter(gattServiceAdapter);
-
     }
 
     private static IntentFilter makeGattUpdateIntentFilter() {
@@ -299,7 +301,7 @@ public class DeviceControlActivity extends Activity {
     }
 
     private void clearUI() {
-        gattServicesList.setAdapter((SimpleExpandableListAdapter)null);
+        gattServicesList.setAdapter((SimpleExpandableListAdapter) null);
         dataField.setText(R.string.no_data);
     }
 
@@ -311,4 +313,99 @@ public class DeviceControlActivity extends Activity {
             }
         });
     }
+
+
+
+
+
+
+    /**
+     * Функция возвращает true, если характеристику возможно прочесть, false - если нет
+     */
+    private boolean isReadable(BluetoothGattCharacteristic characteristic) {
+        return containsProperty(PROPERTY_READ, characteristic);
+    }
+
+    private boolean isWritable(BluetoothGattCharacteristic characteristic) {
+        return containsProperty(PROPERTY_WRITE, characteristic);
+    }
+
+    private boolean isBroadcaster(BluetoothGattCharacteristic characteristic) {
+        return containsProperty(PROPERTY_BROADCAST, characteristic);
+    }
+
+    private boolean isSignedWritable(BluetoothGattCharacteristic characteristic) {
+        return containsProperty(PROPERTY_SIGNED_WRITE, characteristic);
+    }
+
+    private boolean isExtendableProperties(BluetoothGattCharacteristic characteristic) {
+        return containsProperty(PROPERTY_EXTENDED_PROPS, characteristic);
+    }
+
+    private boolean isNotify(BluetoothGattCharacteristic characteristic) {
+        return containsProperty(PROPERTY_NOTIFY, characteristic);
+    }
+
+    private boolean isIndication(BluetoothGattCharacteristic characteristic) {
+        return containsProperty(PROPERTY_INDICATE, characteristic);
+    }
+
+    private boolean isWritableWithoutResponse(BluetoothGattCharacteristic characteristic) {
+        return containsProperty(WRITE_TYPE_NO_RESPONSE, characteristic);
+    }
+
+    /**
+     * Функция возвращает true, если характеристика обладает проверяемым св-вом, false - если нет
+     */
+    private boolean containsProperty(int property, BluetoothGattCharacteristic characteristic) {
+        return (characteristic.getProperties() & property) != 0;
+    }
+
+    public String writerOrReaderCharacteristic(BluetoothGattCharacteristic characteristic) {
+
+        String checkCharacteristic = "";
+
+        int writeType = characteristic.getProperties();
+        int writeProperty;
+
+        if (isReadable(characteristic)) checkCharacteristic += "read ";
+        if (isWritable(characteristic)) checkCharacteristic += "write ";
+        if (isWritableWithoutResponse(characteristic)) checkCharacteristic += "WWR " ;
+        if (isBroadcaster(characteristic)) checkCharacteristic += "broadcast ";
+        if (isExtendableProperties(characteristic)) checkCharacteristic += "EP ";
+        if (isIndication(characteristic)) checkCharacteristic += "indication ";
+        if (isNotify(characteristic)) checkCharacteristic += "notify ";
+        if (isSignedWritable(characteristic)) checkCharacteristic += "SW ";
+
+        Log.d("charprop", checkCharacteristic);
+
+        return checkCharacteristic;
+    }
+
+    /*public int writerOrReaderCharacteristic(BluetoothGattCharacteristic characteristic) {
+
+        int writeType = characteristic.getProperties();
+        int writeProperty;
+
+        switch (writeType) {
+            case WRITE_TYPE_DEFAULT:
+                writeProperty = PROPERTY_WRITE;
+                break;
+            case WRITE_TYPE_NO_RESPONSE:
+                writeProperty = PROPERTY_WRITE_NO_RESPONSE;
+                break;
+            case WRITE_TYPE_SIGNED:
+                writeProperty = PROPERTY_SIGNED_WRITE;
+                break;
+            default:
+                writeProperty = 0;
+                break;
+        }
+        Log.d(TAG, "writeType " + String.valueOf(writeProperty));
+        if ((characteristic.getProperties() & writeProperty) == 0) {
+            Log.e(TAG, "write_or_read" + characteristic.getUuid() +  writeType);
+        }
+        return writeProperty;
+    }*/
+
 }
