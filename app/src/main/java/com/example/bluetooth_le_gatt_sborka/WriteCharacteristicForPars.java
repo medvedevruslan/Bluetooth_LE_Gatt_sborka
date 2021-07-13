@@ -23,12 +23,6 @@ public class WriteCharacteristicForPars extends BluetoothLEService {
         int writeType;
         writeType = characteristic.getWriteType();
 
-
-
-
-
-
-
         characteristic.setValue(bytesToWrite);
         characteristic.setWriteType(writeType);
         if (!bluetoothGatt.writeCharacteristic(characteristic)) {

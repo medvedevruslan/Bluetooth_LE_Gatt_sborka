@@ -15,7 +15,9 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
+import android.widget.Toast;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,32 +27,30 @@ import java.util.UUID;
  */
 public class BluetoothLEService extends Service {
 
+    public final static String
+            ACTION_GATT_CONNECTED = "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_CONNECTED",
+            ACTION_GATT_DISCONNECTED = "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_DISCONNECTED",
+            ACTION_GATT_SERVICES_DISCOVERED = "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_SERVICES_DISCOVERED",
+            ACTION_DATA_AVAILABLE = "com.example.bluetooth_le_gatt_sborka.ACTION_DATA_AVAILABLE",
+            EXTRA_DATA = "com.example.bluetooth_le_gatt_sborka.ACTION_DATA";
+    /**
+     * UUID для прибора сердечного ритма
+     */
+    public final static UUID UUID_HEART_RATE_MEASUREMENT = UUID.fromString(SampleGattAttributes.HEART_RATE_MEASUREMENT);
     private final static String TAG = "Medvedev BLES " + BluetoothLEService.class.getSimpleName();
-
+    private static final int
+            STATE_DISCONNECTED = 0,
+            STATE_CONNECTING = 1,
+            STATE_CONNECTED = 2;
+    private final IBinder binder = new LocalBinder();
+    protected BluetoothGatt bluetoothGatt;
     private BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
     private String bluetoothDeviceAddress;
-    protected BluetoothGatt bluetoothGatt;
     private int connectionStatus = STATE_DISCONNECTED;
-
-    private static final int STATE_DISCONNECTED = 0;
-    private static final int STATE_CONNECTING = 1;
-    private static final int STATE_CONNECTED = 2;
-
-    public final static String ACTION_GATT_CONNECTED = "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_CONNECTED";
-    public final static String ACTION_GATT_DISCONNECTED = "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_DISCONNECTED";
-    public final static String ACTION_GATT_SERVICES_DISCOVERED =
-            "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_SERVICES_DISCOVERED";
-    public final static String ACTION_DATA_AVAILABLE = "com.example.bluetooth_le_gatt_sborka.ACTION_DATA_AVAILABLE";
-    public final static String EXTRA_DATA = "com.example.bluetooth_le_gatt_sborka.ACTION_DATA";
-
-    //UUID для прибора сердечного ритма
-    public final static UUID UUID_HEART_RATE_MEASUREMENT = UUID.fromString(SampleGattAttributes.HEART_RATE_MEASUREMENT);
-
     //Реализация методов обратного вызова для событий GATT,
     //о которых заботится приложение. Например, изменение подключения и обнаружение служб.
     public final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
-
         @Override
         //при изменении состояния подключения
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
@@ -75,6 +75,7 @@ public class BluetoothLEService extends Service {
         @Override
         public void onServicesDiscovered(BluetoothGatt bluetoothGatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
+                sendValue(bluetoothGatt);
                 broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
             } else {
                 Log.d(TAG, "об обнаруженных услугах получено: " + status);
@@ -118,7 +119,7 @@ public class BluetoothLEService extends Service {
         // http: developer.bluetooth.orggattcharacteristicsPagesCharacteristicViewer.aspx? U = org.bluetooth.characteristic.heart_rate_measurement.xml
         if (UUID_HEART_RATE_MEASUREMENT.equals(characteristic.getUuid())) {
             int flag = characteristic.getProperties();
-            int format = -1;
+            int format;
             if ((flag & 0x01) != 0) {
                 format = BluetoothGattCharacteristic.FORMAT_UINT16;
                 Log.d(TAG, "Heart rate format UINT16.");
@@ -143,7 +144,6 @@ public class BluetoothLEService extends Service {
         }
         sendBroadcast(intent);
     }
-
 
     public boolean initialize() {
         // Для уровня API 18 и выше получите ссылку на BluetoothAdapter
@@ -205,7 +205,6 @@ public class BluetoothLEService extends Service {
         return true;
     }
 
-
     /**
      * Отключает существующее соединение или отменяет ожидающее соединение.
      * Результат отключения передается асинхронно через обратный вызов
@@ -218,6 +217,12 @@ public class BluetoothLEService extends Service {
         bluetoothGatt.disconnect();
     }
 
+
+/*    public boolean writecharacterisctic() {
+        bluetoothGatt.writeCharacteristic();
+        return true;
+    }*/
+
     public void readCharacteristic(BluetoothGattCharacteristic characteristic) {
         if (bluetoothAdapter == null || bluetoothGatt == null) {
             Log.d(TAG, "BluetoothAdapter не инициализирован");
@@ -225,12 +230,6 @@ public class BluetoothLEService extends Service {
         }
         bluetoothGatt.readCharacteristic(characteristic);
     }
-
-
-/*    public boolean writecharacterisctic() {
-        bluetoothGatt.writeCharacteristic();
-        return true;
-    }*/
 
     /**
      * Включает или отключает уведомление о заданной характеристике.
@@ -260,13 +259,6 @@ public class BluetoothLEService extends Service {
         return bluetoothGatt.getServices();
     }
 
-
-    public class LocalBinder extends Binder {
-        BluetoothLEService getService() {
-            return BluetoothLEService.this;
-        }
-    }
-
     @Override
     public IBinder onBind(Intent intent) {
         return binder;
@@ -294,6 +286,29 @@ public class BluetoothLEService extends Service {
         bluetoothGatt = null;
     }
 
-    private final IBinder binder = new LocalBinder();
+    /**
+     * Функция отправки значения характеристики по UUID
+     */
+    private void sendValue(BluetoothGatt gatt) {
+        BluetoothGattCharacteristic characteristic = gatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb"));
+        if (characteristic == null) {
+            Log.i("Error", "Can't get characteristic!");
+            return;
+        }
+        byte[] command = new byte[]{};
+        characteristic.setValue(command);
 
+        if (!gatt.writeCharacteristic(characteristic)) {
+            Log.e(TAG, String.format("ERROR: writeCharacteristic failed for characteristic: %s", characteristic.getUuid()));
+            Toast.makeText(getApplicationContext(), String.format("Ошибка записи значения характеристики %s!", characteristic.getUuid()), Toast.LENGTH_SHORT).show();
+        } else {
+            Log.d(TAG, String.format("Writing <%s> to characteristic <%s>", Arrays.toString(command), characteristic.getUuid()));
+        }
+    }
+
+    public class LocalBinder extends Binder {
+        BluetoothLEService getService() {
+            return BluetoothLEService.this;
+        }
+    }
 }

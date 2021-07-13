@@ -41,20 +41,42 @@ import java.util.List;
 public class DeviceScanActivity extends ListActivity {
 
     public static final String TAG = "Medvedev DSA " + DeviceScanActivity.class.getSimpleName();
+    private static final int REQUEST_ENABLE_BT = 1;
+    private static final long SCAN_PERIOD = 10000;
+    int count;
+    BluetoothLeScanner bluetoothLeScanner;
+    ScanSettings bleScanSettings = null;
+    List<ScanFilter> bleScanFilters = null;
     private BleDevicesListAdapter bleDevicesListAdapter;
     private BluetoothAdapter bluetoothAdapter;
     private boolean checkScanning;
     private Handler handler;
-    int count;
     private int permissionCheck;
+    // Device scan callback KITKAT and below.
+    private final BluetoothAdapter.LeScanCallback lowEnergyScanCallback = new BluetoothAdapter.LeScanCallback() {
 
-    BluetoothLeScanner bluetoothLeScanner;
-    ScanSettings bleScanSettings = null;
-    List<ScanFilter> bleScanFilters = null;
+        /**
+         * @param device название устройства
+         * @param rssi уровень сигнала, чем ниже значение, тем хуже сигнал
+         * @param scanRecord Содержание записи advertising, предлагаемой удаленным устройством.
+         */
+        @Override
+        public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
+            Log.d(TAG, " onLeScan LeScanCallback lowEnergyScanCallback");
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Log.d(TAG, "adding device " + device);
+                    bleDevicesListAdapter.addDeviceToList(device);
+                    Log.d(TAG, "lowEnergyScanCallback");
 
-    private static final int REQUEST_ENABLE_BT = 1;
-
-    private static final long SCAN_PERIOD = 10000;
+                    //уведомляет прикрепленных наблюдателей, что базовые данные были изменены,
+                    //и любое представление, отражающее набор данных, должно обновиться.
+                    bleDevicesListAdapter.notifyDataSetChanged();
+                }
+            });
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -144,7 +166,6 @@ public class DeviceScanActivity extends ListActivity {
 
     @Override
     protected void onResume() {
-
         super.onResume();
 
         // Убедитесь, что на устройстве включен Bluetooth. Если Bluetooth в настоящее время не включен,
@@ -247,14 +268,105 @@ public class DeviceScanActivity extends ListActivity {
         invalidateOptionsMenu();
     }
 
+    public void startOrStopScanBle(String stopOrStartTask) {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && bluetoothAdapter != null) {
+            Log.d(TAG, "VERSION.SDK_INT: " + Build.VERSION.SDK_INT + " check#1");
+            if (bluetoothLeScanner == null) {
+                bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
+                // настройки для поиска термометра, взяты из приложения Microlife
+                bleScanSettings = new ScanSettings.Builder().setScanMode(2).build();
+                bleScanFilters = new ArrayList();
+            }
+
+            ScanCallback scanCallback = new ScanCallback() {
+                @Override
+                public void onScanResult(int callbackType, ScanResult scanResult) {
+                    super.onScanResult(callbackType, scanResult);
+
+                    if (scanResult.getDevice().getName() != null && scanResult.getDevice().getAddress() != null) {
+
+                        runOnUiThread(() -> {
+
+                            /*Log.d(TAG, "onScanResult. callbackType is : " + callbackType + ",name: " +
+                                    scanResult.getDevice().getName() + ",address: " +
+                                    scanResult.getDevice().getAddress() + ",rssi: " + scanResult.getRssi());*/
+
+                            BluetoothDevice bluetoothDevice = scanResult.getDevice();
+                            bleDevicesListAdapter.addDeviceToList(bluetoothDevice);
+
+                            //уведомляет прикрепленных наблюдателей, что базовые данные были изменены,
+                            //и любое представление, отражающее набор данных, должно обновиться.
+                            bleDevicesListAdapter.notifyDataSetChanged();
+                        });
+                    }
+                }
+
+                @Override
+                public void onBatchScanResults(List<ScanResult> results) {
+                    super.onBatchScanResults(results);
+                    Log.d(TAG, "onBatchScanResults, results size:" + results.size());
+                    for (ScanResult sr : results) {
+                        Log.d(TAG, "onBatchScanResults results:  " + sr.toString());
+                    }
+                }
+
+                @Override
+                public void onScanFailed(int errorCode) {
+                    super.onScanFailed(errorCode);
+                    Log.e(TAG, "onScanFailed, code is : " + errorCode);
+                }
+            };
+
+            if (stopOrStartTask.equals("start")) {
+                Log.d(TAG, "begin to scan bluetooth devices...");
+                checkScanning = true;
+
+                try {
+                    bluetoothLeScanner.startScan(scanCallback);
+                    //bluetoothLeScanner.startScan((List<ScanFilter>) null, bleScanSettings, scanCallback);
+                } catch (Exception e) {
+                    Log.e(TAG, "startScan error." + e.getMessage());
+                }
+
+            } else {
+
+                Log.d(TAG, "stop to scan bluetooth devices.");
+                checkScanning = false;
+                try {
+                    this.bluetoothLeScanner.stopScan(scanCallback);
+                } catch (Exception e2) {
+                    Log.e(TAG, "stopScan error." + e2.getMessage());
+                }
+            }
+
+        } else if (bluetoothAdapter != null) {
+            Log.d(TAG, "VERSION.SDK_INT: " + Build.VERSION.SDK_INT + " check#2");
+
+            if (stopOrStartTask.equals("start")) {
+                bluetoothAdapter.startLeScan(lowEnergyScanCallback);
+            } else if (stopOrStartTask.equals("stop")) {
+                bluetoothAdapter.stopLeScan(lowEnergyScanCallback);
+            }
+        } else {
+            Log.e(TAG, "bluetoothAdapter = null");
+        }
+    }
+
+
+    static class ViewHolder {
+        TextView deviceName;
+        TextView deviceAddress;
+    }
+
     // Адаптер для устройств, обнаруженный при сканировании.
     private class BleDevicesListAdapter extends BaseAdapter {
 
         //список обнаруженных BLE устройств
-        private ArrayList<BluetoothDevice> lowEnergyDevices;
+        private final ArrayList<BluetoothDevice> lowEnergyDevices;
 
         //наполнитель layout`a
-        private LayoutInflater layoutInflater;
+        private final LayoutInflater layoutInflater;
 
         //метод для нахождения layout`a в классе
         public BleDevicesListAdapter() {
@@ -262,7 +374,7 @@ public class DeviceScanActivity extends ListActivity {
             Log.d(TAG, "создание BleDevicesListAdapter");
             lowEnergyDevices = new ArrayList<BluetoothDevice>();
             layoutInflater = DeviceScanActivity.this.getLayoutInflater();
-            Log.d(TAG, String.valueOf(DeviceScanActivity.this.getLayoutInflater()) + " BleDevicesListAdapter создан");
+            Log.d(TAG, DeviceScanActivity.this.getLayoutInflater() + " BleDevicesListAdapter создан");
         }
 
         public void addDeviceToList(BluetoothDevice device) {
@@ -325,124 +437,4 @@ public class DeviceScanActivity extends ListActivity {
             return convertView;
         }
     }
-
-    public void startOrStopScanBle(String stopOrStartTask) {
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && bluetoothAdapter != null) {
-            Log.d(TAG, "VERSION.SDK_INT: " + String.valueOf(Build.VERSION.SDK_INT) + " check#1");
-            if (bluetoothLeScanner == null) {
-                bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
-                // настройки для поиска термометра, взяты из приложения Microlife
-                bleScanSettings = new ScanSettings.Builder().setScanMode(2).build();
-                bleScanFilters = new ArrayList();
-            }
-
-            ScanCallback scanCallback = new ScanCallback() {
-                @Override
-                public void onScanResult(int callbackType, ScanResult scanResult) {
-                    super.onScanResult(callbackType, scanResult);
-
-                    if (scanResult.getDevice().getName() != null && scanResult.getDevice().getAddress() != null) {
-
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-
-                                /*Log.d(TAG, "onScanResult. callbackType is : " + callbackType + ",name: " +
-                                        scanResult.getDevice().getName() + ",address: " +
-                                        scanResult.getDevice().getAddress() + ",rssi: " + scanResult.getRssi());*/
-
-                                BluetoothDevice bluetoothDevice = scanResult.getDevice();
-                                bleDevicesListAdapter.addDeviceToList(bluetoothDevice);
-
-                                //уведомляет прикрепленных наблюдателей, что базовые данные были изменены,
-                                //и любое представление, отражающее набор данных, должно обновиться.
-                                bleDevicesListAdapter.notifyDataSetChanged();
-                            }
-                        });
-                    }
-                }
-
-                @Override
-                public void onBatchScanResults(List<ScanResult> results) {
-                    super.onBatchScanResults(results);
-                    Log.d(TAG, "onBatchScanResults, results size:" + results.size());
-                    for (ScanResult sr : results) {
-                        Log.d(TAG, "onBatchScanResults results:  " + sr.toString());
-                    }
-                }
-
-                @Override
-                public void onScanFailed(int errorCode) {
-                    super.onScanFailed(errorCode);
-                    Log.e(TAG, "onScanFailed, code is : " + errorCode);
-                }
-            };
-
-            if (stopOrStartTask.equals("start")) {
-                Log.d(TAG, "begin to scan bluetooth devices...");
-                checkScanning = true;
-
-                try {
-                    bluetoothLeScanner.startScan(scanCallback);
-                    //bluetoothLeScanner.startScan((List<ScanFilter>) null, bleScanSettings, scanCallback);
-                } catch (Exception e) {
-                    Log.e(TAG, "startScan error." + e.getMessage());
-                }
-
-            } else {
-
-                Log.d(TAG, "stop to scan bluetooth devices.");
-                checkScanning = false;
-                try {
-                    this.bluetoothLeScanner.stopScan(scanCallback);
-                } catch (Exception e2) {
-                    Log.e(TAG, "stopScan error." + e2.getMessage());
-                }
-            }
-
-        } else if (bluetoothAdapter != null) {
-            Log.d(TAG, "VERSION.SDK_INT: " + String.valueOf(Build.VERSION.SDK_INT) + " check#2");
-
-            if (stopOrStartTask.equals("start")) {
-                bluetoothAdapter.startLeScan(lowEnergyScanCallback);
-            } else if (stopOrStartTask.equals("stop")) {
-                bluetoothAdapter.stopLeScan(lowEnergyScanCallback);
-            }
-        } else {
-            Log.e(TAG, "bluetoothAdapter = null");
-        }
-    }
-
-
-    static class ViewHolder {
-        TextView deviceName;
-        TextView deviceAddress;
-    }
-
-    // Device scan callback KITKAT and below.
-    private BluetoothAdapter.LeScanCallback lowEnergyScanCallback = new BluetoothAdapter.LeScanCallback() {
-
-        /**
-         * @param device название устройства
-         * @param rssi уровень сигнала, чем ниже значение, тем хуже сигнал
-         * @param scanRecord Содержание записи advertising, предлагаемой удаленным устройством.
-         */
-        @Override
-        public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
-            Log.d(TAG, " onLeScan LeScanCallback lowEnergyScanCallback");
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    Log.d(TAG, "adding device " + device);
-                    bleDevicesListAdapter.addDeviceToList(device);
-                    Log.d(TAG, "lowEnergyScanCallback");
-
-                    //уведомляет прикрепленных наблюдателей, что базовые данные были изменены,
-                    //и любое представление, отражающее набор данных, должно обновиться.
-                    bleDevicesListAdapter.notifyDataSetChanged();
-                }
-            });
-        }
-    };
 }
