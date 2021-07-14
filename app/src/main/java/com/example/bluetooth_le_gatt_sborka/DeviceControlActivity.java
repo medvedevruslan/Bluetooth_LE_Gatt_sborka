@@ -130,7 +130,7 @@ public class DeviceControlActivity extends Activity {
                         writeTypeField.setText(writerOrReaderCharacteristic(characteristic));
 
                         final int charaProp = characteristic.getProperties();
-                        if ((charaProp | BluetoothGattCharacteristic.PROPERTY_READ) > 0) {
+                        if ((charaProp & BluetoothGattCharacteristic.PROPERTY_READ) > 0) {
                             //Если есть активное уведомление о характеристике, сначала очистите его,
                             // чтобы оно не обновляло поле данных в пользовательском интерфейсе.
                             if (notifyCharacteristic != null) {
@@ -139,10 +139,16 @@ public class DeviceControlActivity extends Activity {
                             }
                             bluetoothLEService.readCharacteristic(characteristic);
                         }
-                        if ((charaProp | BluetoothGattCharacteristic.PROPERTY_NOTIFY) > 0) {
+                        if ((charaProp & BluetoothGattCharacteristic.PROPERTY_NOTIFY) > 0) {
                             notifyCharacteristic = characteristic;
                             bluetoothLEService.setCharacteristicNotification(characteristic, true);
                         }
+
+                        if ((charaProp & BluetoothGattCharacteristic.PROPERTY_WRITE) > 0) {
+                            notifyCharacteristic = characteristic;
+                            bluetoothLEService.setCharacteristicNotification(characteristic, true);
+                        }
+
                         return true;
                     }
                     return false;
@@ -315,10 +321,6 @@ public class DeviceControlActivity extends Activity {
     }
 
 
-
-
-
-
     /**
      * Функция возвращает true, если характеристику возможно прочесть, false - если нет
      */
@@ -370,7 +372,7 @@ public class DeviceControlActivity extends Activity {
 
         if (isReadable(characteristic)) checkCharacteristic += "read ";
         if (isWritable(characteristic)) checkCharacteristic += "write ";
-        if (isWritableWithoutResponse(characteristic)) checkCharacteristic += "WWR " ;
+        if (isWritableWithoutResponse(characteristic)) checkCharacteristic += "WWR ";
         if (isBroadcaster(characteristic)) checkCharacteristic += "broadcast ";
         if (isExtendableProperties(characteristic)) checkCharacteristic += "EP ";
         if (isIndication(characteristic)) checkCharacteristic += "indication ";

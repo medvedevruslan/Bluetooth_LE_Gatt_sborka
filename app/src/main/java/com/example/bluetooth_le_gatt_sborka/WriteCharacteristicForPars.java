@@ -46,16 +46,6 @@ public class WriteCharacteristicForPars extends BluetoothLEService {
     }
 
 
-
-
-
-
-
-
-
-
-
-
     public void writeData(BluetoothGattCharacteristic characteristic, ByteArray payload) {
 
         if (characteristic != null) {
@@ -77,4 +67,3 @@ public class WriteCharacteristicForPars extends BluetoothLEService {
     }
 }
 */
-}
