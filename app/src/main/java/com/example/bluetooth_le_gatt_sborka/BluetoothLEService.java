@@ -15,9 +15,7 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
-import android.widget.Toast;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -75,7 +73,7 @@ public class BluetoothLEService extends Service {
         @Override
         public void onServicesDiscovered(BluetoothGatt bluetoothGatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                sendValue(bluetoothGatt);
+                connectionAttempt();
                 broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
             } else {
                 Log.d(TAG, "об обнаруженных услугах получено: " + status);
@@ -236,11 +234,12 @@ public class BluetoothLEService extends Service {
      *
      * @param characteristic характеристики
      * @param enabled        Если true, включить уведомление
+     * @return true, если включение/отключение завершилось успешно
      */
-    public void setCharacteristicNotification(BluetoothGattCharacteristic characteristic, boolean enabled) {
+    public boolean setCharacteristicNotification(BluetoothGattCharacteristic characteristic, boolean enabled) {
         if (bluetoothAdapter == null || bluetoothGatt == null) {
             Log.d(TAG, "BluetoothAdapter не инициализирован");
-            return;
+            return false;
         }
         bluetoothGatt.setCharacteristicNotification(characteristic, enabled);
 
@@ -252,6 +251,7 @@ public class BluetoothLEService extends Service {
             descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
             bluetoothGatt.writeDescriptor(descriptor);
         }
+        return true;// если весь код выполнен
     }
 
     public List<BluetoothGattService> getSupportedGattServices() {
@@ -286,24 +286,61 @@ public class BluetoothLEService extends Service {
         bluetoothGatt = null;
     }
 
+    // /**
+    //  * Функция отправки значения характеристики по UUID
+    //  *
+    //  * @param gatt GATT соединённого устройства
+    //  */
+    // private void sendValue(BluetoothGatt gatt) {
+    //     if (gatt == null) {
+    //         Log.e("Error", "BluetoothAdapter not initialized!");
+    //         return;
+    //     }
+    //     BluetoothGattCharacteristic characteristic = gatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb"));
+    //     if (characteristic == null) {
+    //         Log.e("Error", "Can't get characteristic!");
+    //         return;
+    //     }
+    //     byte[] command = new byte[]{};
+    //     characteristic.setValue(command);
+    //
+    //     if (!gatt.writeCharacteristic(characteristic)) {
+    //         Log.e(TAG, String.format("ERROR: writeCharacteristic failed for characteristic: %s", characteristic.getUuid()));
+    //         Toast.makeText(getApplicationContext(), String.format("Ошибка записи значения характеристики %s!", characteristic.getUuid()), Toast.LENGTH_SHORT).show();
+    //     } else {
+    //         Log.d(TAG, String.format("Writing <%s> to characteristic <%s>", Arrays.toString(command), characteristic.getUuid()));
+    //     }
+    // }
+
     /**
-     * Функция отправки значения характеристики по UUID
+     * Функция попытки подключения к уст-ву [testo 805i]
+     * <p>Включает уведомления/индикацию для характеристики 0000fff2-0000-1000-8000-00805f9b34fb,
+     * записывает значение "01-00" в дескриптор 00002902-0000-1000-8000-00805f9b34fb</p>
      */
-    private void sendValue(BluetoothGatt gatt) {
-        BluetoothGattCharacteristic characteristic = gatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb"));
-        if (characteristic == null) {
-            Log.i("Error", "Can't get characteristic!");
+    private void connectionAttempt() {
+        if (bluetoothGatt == null) {
+            Log.e("Error", "BluetoothAdapter not initialized!");
             return;
         }
-        byte[] command = new byte[]{};
-        characteristic.setValue(command);
-
-        if (!gatt.writeCharacteristic(characteristic)) {
-            Log.e(TAG, String.format("ERROR: writeCharacteristic failed for characteristic: %s", characteristic.getUuid()));
-            Toast.makeText(getApplicationContext(), String.format("Ошибка записи значения характеристики %s!", characteristic.getUuid()), Toast.LENGTH_SHORT).show();
-        } else {
-            Log.d(TAG, String.format("Writing <%s> to characteristic <%s>", Arrays.toString(command), characteristic.getUuid()));
+        BluetoothGattCharacteristic characteristic = bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb"));
+        if (characteristic == null) {
+            Log.e("Error", "Can't get characteristic!");
+            return;
         }
+        if (setCharacteristicNotification(characteristic, true)) {
+            Log.i("ConnectionAttempt", "Notifications/indications successfully enabled!");
+        } else {
+            Log.e("ConnectionAttempt", "Notifications/indications enabling error!");
+            return;
+        }
+
+        BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
+        if (descriptor != null) {
+            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+            if (bluetoothGatt.writeDescriptor(descriptor))
+                Log.i("ConnectionAttempt", "Successfully writing a value to a descriptor!");
+            else Log.e("ConnectionAttempt", "Error writing value to descriptor!");
+        } else Log.e("ConnectionAttempt", "Descriptor is null!");
     }
 
     public class LocalBinder extends Binder {
