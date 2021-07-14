@@ -73,7 +73,11 @@ public class BluetoothLEService extends Service {
         @Override
         public void onServicesDiscovered(BluetoothGatt bluetoothGatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                connectionAttempt(bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb")), true);
+                if (setCharacteristicNotification(bluetoothGatt.getService(UUID.fromString("00001801-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("00002a05-0000-1000-8000-00805f9b34fb")), true)) {
+                    Log.d("ConnectionAttempt0", "Notifications/indications 2A05 successfully enabled!");
+                    connectionAttempt(bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb")), true);
+                }
+                else Log.e("ConnectionAttempt0", "Notifications/indications 2A05 enabling error!");
                 broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
             } else {
                 Log.d(TAG, "об обнаруженных услугах получено: " + status);
@@ -317,7 +321,7 @@ public class BluetoothLEService extends Service {
      */
     public void connectionAttempt(BluetoothGattCharacteristic characteristic, boolean enabled) {
         if (bluetoothGatt == null) {
-            Log.e("ConnectionAttempt", "BluetoothAdapter not initialized!");
+            Log.e("ConnectionAttempt", "BluetoothGatt is null!");
             return;
         }
         if (characteristic == null) {
@@ -325,9 +329,9 @@ public class BluetoothLEService extends Service {
             return;
         }
         if (setCharacteristicNotification(characteristic, enabled)) {
-            Log.i("ConnectionAttempt", "Notifications/indications successfully enabled!");
+            Log.d("ConnectionAttempt", "Notifications/indications fff2 successfully enabled!");
         } else {
-            Log.e("ConnectionAttempt", "Notifications/indications enabling error!");
+            Log.e("ConnectionAttempt", "Notifications/indications fff2 enabling error!");
             return;
         }
 
@@ -335,9 +339,9 @@ public class BluetoothLEService extends Service {
         if (descriptor != null) {
             descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
             if (bluetoothGatt.writeDescriptor(descriptor))
-                Log.i("ConnectionAttempt", "Successfully writing a value to a descriptor!");
-            else Log.e("ConnectionAttempt", "Error writing value to descriptor!");
-        } else Log.e("ConnectionAttempt", "Descriptor is null!");
+                Log.d("ConnectionAttempt", "Successfully writing a value to a descriptor 2902!");
+            else Log.e("ConnectionAttempt", "Error writing value to descriptor 2902!");
+        } else Log.e("ConnectionAttempt", "Descriptor 2902 is null!");
     }
 
     public class LocalBinder extends Binder {
