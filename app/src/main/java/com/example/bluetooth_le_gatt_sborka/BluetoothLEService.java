@@ -73,7 +73,7 @@ public class BluetoothLEService extends Service {
         @Override
         public void onServicesDiscovered(BluetoothGatt bluetoothGatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                connectionAttempt();
+                connectionAttempt(bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb")), true);
                 broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
             } else {
                 Log.d(TAG, "об обнаруженных услугах получено: " + status);
@@ -241,17 +241,16 @@ public class BluetoothLEService extends Service {
             Log.d(TAG, "BluetoothAdapter не инициализирован");
             return false;
         }
-        bluetoothGatt.setCharacteristicNotification(characteristic, enabled);
+        return bluetoothGatt.setCharacteristicNotification(characteristic, enabled);
 
-        // Это относится к измерению частоты пульса.
-
-        if (UUID_HEART_RATE_MEASUREMENT.equals(characteristic.getUuid())) {
-            BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
-                    UUID.fromString(SampleGattAttributes.CLIENT_CHARACTERISTIC_CONFIG));
-            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-            bluetoothGatt.writeDescriptor(descriptor);
-        }
-        return true;// если весь код выполнен
+        // // Это относится к измерению частоты пульса.
+        //
+        // if (UUID_HEART_RATE_MEASUREMENT.equals(characteristic.getUuid())) {
+        //     BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
+        //             UUID.fromString(SampleGattAttributes.CLIENT_CHARACTERISTIC_CONFIG));
+        //     descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+        //     bluetoothGatt.writeDescriptor(descriptor);
+        // }
     }
 
     public List<BluetoothGattService> getSupportedGattServices() {
@@ -313,28 +312,26 @@ public class BluetoothLEService extends Service {
     // }
 
     /**
-     * Функция попытки подключения к уст-ву [testo 805i]
-     * <p>Включает уведомления/индикацию для характеристики 0000fff2-0000-1000-8000-00805f9b34fb,
-     * записывает значение "01-00" в дескриптор 00002902-0000-1000-8000-00805f9b34fb</p>
+     * Функция попытки подключения к уст-ву [testo 805i или ???].
+     * <p>Записывает значение "01-00" в дескриптор 00002902-0000-1000-8000-00805f9b34fb</p>
      */
-    private void connectionAttempt() {
+    public void connectionAttempt(BluetoothGattCharacteristic characteristic, boolean enabled) {
         if (bluetoothGatt == null) {
-            Log.e("Error", "BluetoothAdapter not initialized!");
+            Log.e("ConnectionAttempt", "BluetoothAdapter not initialized!");
             return;
         }
-        BluetoothGattCharacteristic characteristic = bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb"));
         if (characteristic == null) {
-            Log.e("Error", "Can't get characteristic!");
+            Log.e("ConnectionAttempt", "Can't get characteristic!");
             return;
         }
-        if (setCharacteristicNotification(characteristic, true)) {
+        if (setCharacteristicNotification(characteristic, enabled)) {
             Log.i("ConnectionAttempt", "Notifications/indications successfully enabled!");
         } else {
             Log.e("ConnectionAttempt", "Notifications/indications enabling error!");
             return;
         }
 
-        BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
+        BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString(SampleGattAttributes.CLIENT_CHARACTERISTIC_CONFIG));
         if (descriptor != null) {
             descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
             if (bluetoothGatt.writeDescriptor(descriptor))
