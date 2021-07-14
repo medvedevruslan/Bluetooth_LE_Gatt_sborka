@@ -73,12 +73,21 @@ public class BluetoothLEService extends Service {
         @Override
         public void onServicesDiscovered(BluetoothGatt bluetoothGatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                if (setCharacteristicNotification(bluetoothGatt.getService(UUID.fromString("00001801-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("00002a05-0000-1000-8000-00805f9b34fb")), true)) {
-                    Log.d("ConnectionAttempt0", "Notifications/indications 2A05 successfully enabled!");
-                    connectionAttempt(bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb")), true);
+
+                if (bluetoothGatt.getDevice().getAddress().equals("40:BD:32:A0:6E:D6")) {
+
+                    if (setCharacteristicNotification(bluetoothGatt.getService(UUID.fromString("00001801-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("00002a05-0000-1000-8000-00805f9b34fb")), true)) {
+                        Log.d("ConnectionAttempt0", "Notifications/indications 2A05 successfully enabled!");
+                        connectionAttempt(bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb")), true);
+                    } else
+                        Log.e("ConnectionAttempt0", "Notifications/indications 2A05 enabling error!");
+                    broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
+                } else if (bluetoothGatt.getDevice().getAddress().equals("18:7A:93:BC:6D:80")) {
+                    if (setCharacteristicNotification(bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb")), true)) {
+                        Log.d("ConnectionAttempt0", "Notifications/indications FFF1 successfully enabled!");
+                    } else
+                        Log.e("ConnectionAttempt0", "Notifications/indications FFF1 enabling error!");
                 }
-                else Log.e("ConnectionAttempt0", "Notifications/indications 2A05 enabling error!");
-                broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
             } else {
                 Log.d(TAG, "об обнаруженных услугах получено: " + status);
             }
