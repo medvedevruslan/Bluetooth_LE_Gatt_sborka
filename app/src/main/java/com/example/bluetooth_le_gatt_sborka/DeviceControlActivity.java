@@ -22,6 +22,7 @@ import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.UUID;
 
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_BROADCAST;
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_EXTENDED_PROPS;
@@ -31,6 +32,7 @@ import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_READ;
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE;
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_WRITE;
 import static android.bluetooth.BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE;
+import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.UUID_HEART_RATE_MEASUREMENT;
 
 /**
  * Для данного устройства BLE это действие предоставляет пользовательский интерфейс для подключения,
@@ -135,18 +137,25 @@ public class DeviceControlActivity extends Activity {
                         writeTypeField.setText(checkProperties(characteristic));
 
                         final int charaProp = characteristic.getProperties();
-                        if ((charaProp | BluetoothGattCharacteristic.PROPERTY_READ) > 0) {
+                        if ((charaProp & BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
                             //Если есть активное уведомление о характеристике, сначала очистите его,
                             // чтобы оно не обновляло поле данных в пользовательском интерфейсе.
                             if (notifyCharacteristic != null) {
-                                bluetoothLEService.setCharacteristicNotification(notifyCharacteristic, false);
+                                // Не знаю зачем нужна ветка. Просто адаптировал под новую функцию [Danil]
+                                if (characteristic.getUuid().equals(UUID_HEART_RATE_MEASUREMENT))
+                                    bluetoothLEService.connectionAttempt(notifyCharacteristic, false);
+                                else
+                                    bluetoothLEService.setCharacteristicNotification(notifyCharacteristic, false);
                                 notifyCharacteristic = null;
                             }
                             bluetoothLEService.readCharacteristic(characteristic);
                         }
-                        if ((charaProp | BluetoothGattCharacteristic.PROPERTY_NOTIFY) > 0) {
+                        if ((charaProp & BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
                             notifyCharacteristic = characteristic;
-                            bluetoothLEService.setCharacteristicNotification(characteristic, true);
+                            if (characteristic.getUuid().equals(UUID_HEART_RATE_MEASUREMENT))
+                                bluetoothLEService.connectionAttempt(notifyCharacteristic, true);
+                            else
+                                bluetoothLEService.setCharacteristicNotification(characteristic, true);
                         }
                         return true;
                     }
