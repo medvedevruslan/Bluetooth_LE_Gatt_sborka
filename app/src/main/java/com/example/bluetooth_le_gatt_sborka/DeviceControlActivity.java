@@ -22,7 +22,6 @@ import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.UUID;
 
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_BROADCAST;
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_EXTENDED_PROPS;
@@ -46,7 +45,7 @@ public class DeviceControlActivity extends Activity {
     public static final String
             EXTRAS_DEVICE_NAME = "DEVICE_NAME",
             EXTRAS_DEVICE_ADDRESS = "DEVICE_ADDRESS";
-    private final static String TAG = "Medvedev DCA " + DeviceControlActivity.class.getSimpleName();
+    private final static String TAG = "Medvedev1 DCA " + DeviceControlActivity.class.getSimpleName();
     private final String
             LIST_NAME = "NAME",
             LIST_UUID = "UUID";
@@ -143,7 +142,7 @@ public class DeviceControlActivity extends Activity {
                             if (notifyCharacteristic != null) {
                                 // Не знаю зачем нужна ветка. Просто адаптировал под новую функцию [Danil]
                                 if (characteristic.getUuid().equals(UUID_HEART_RATE_MEASUREMENT))
-                                    bluetoothLEService.connectionAttempt(notifyCharacteristic, false);
+                                    bluetoothLEService.setNotification(notifyCharacteristic, false);
                                 else
                                     bluetoothLEService.setCharacteristicNotification(notifyCharacteristic, false);
                                 notifyCharacteristic = null;
@@ -153,7 +152,7 @@ public class DeviceControlActivity extends Activity {
                         if ((charaProp & BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
                             notifyCharacteristic = characteristic;
                             if (characteristic.getUuid().equals(UUID_HEART_RATE_MEASUREMENT))
-                                bluetoothLEService.connectionAttempt(notifyCharacteristic, true);
+                                bluetoothLEService.setNotification(notifyCharacteristic, true);
                             else
                                 bluetoothLEService.setCharacteristicNotification(characteristic, true);
                         }
@@ -345,74 +344,67 @@ public class DeviceControlActivity extends Activity {
         return characteristicWithProperties.substring(characteristicWithProperties.indexOf("|") + 2);
     }
 
-
     ///// Вспомогательные функции определения свойств характеристик
 
     /**
      * Функция возвращает true, если характеристику возможно прочесть, false - если нет
      */
-    private boolean isReadable(BluetoothGattCharacteristic characteristic) {
+    public boolean isReadable(BluetoothGattCharacteristic characteristic) {
         return containsProperty(PROPERTY_READ, characteristic);
     }
-
-    private boolean isWritable(BluetoothGattCharacteristic characteristic) {
+    public boolean isWritable(BluetoothGattCharacteristic characteristic) {
         return containsProperty(PROPERTY_WRITE, characteristic);
     }
-
-    private boolean isBroadcastable(BluetoothGattCharacteristic characteristic) {
+    public boolean isBroadcastable(BluetoothGattCharacteristic characteristic) {
         return containsProperty(PROPERTY_BROADCAST, characteristic);
     }
-
-    private boolean isSignedWritable(BluetoothGattCharacteristic characteristic) {
+    public boolean isSignedWritable(BluetoothGattCharacteristic characteristic) {
         return containsProperty(PROPERTY_SIGNED_WRITE, characteristic);
     }
-
-    private boolean isWithExtendedProperties(BluetoothGattCharacteristic characteristic) {
+    public boolean isWithExtendedProperties(BluetoothGattCharacteristic characteristic) {
         return containsProperty(PROPERTY_EXTENDED_PROPS, characteristic);
     }
-
-    private boolean isNotify(BluetoothGattCharacteristic characteristic) {
+    public static boolean isNotify(BluetoothGattCharacteristic characteristic) {
         return containsProperty(PROPERTY_NOTIFY, characteristic);
     }
-
-    private boolean isIndication(BluetoothGattCharacteristic characteristic) {
+    public static boolean isIndication(BluetoothGattCharacteristic characteristic) {
         return containsProperty(PROPERTY_INDICATE, characteristic);
     }
-
-    private boolean isWritableWithoutResponse(BluetoothGattCharacteristic characteristic) {
+    public boolean isWritableWithoutResponse(BluetoothGattCharacteristic characteristic) {
         return containsProperty(WRITE_TYPE_NO_RESPONSE, characteristic);
     }
 
     /**
      * Функция возвращает true, если характеристика обладает проверяемым св-вом, false - если нет
      */
-    private boolean containsProperty(int property, BluetoothGattCharacteristic characteristic) {
+    private static boolean containsProperty(int property, BluetoothGattCharacteristic characteristic) {
         return (characteristic.getProperties() & property) != 0;
     }
 
-    /*public int writerOrReaderCharacteristic(BluetoothGattCharacteristic characteristic) {
+    /*@Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        openQuitDialog();
+    }
 
-        int writeType = characteristic.getProperties();
-        int writeProperty;
+    private void openQuitDialog() {
+        AlertDialog.Builder quitDialog = new AlertDialog.Builder(
+                DeviceControlActivity.this);
+        quitDialog.setTitle("Разорвать соединение с устройством?");
 
-        switch (writeType) {
-            case WRITE_TYPE_DEFAULT:
-                writeProperty = PROPERTY_WRITE;
-                break;
-            case WRITE_TYPE_NO_RESPONSE:
-                writeProperty = PROPERTY_WRITE_NO_RESPONSE;
-                break;
-            case WRITE_TYPE_SIGNED:
-                writeProperty = PROPERTY_SIGNED_WRITE;
-                break;
-            default:
-                writeProperty = 0;
-                break;
-        }
-        Log.d(TAG, "writeType " + String.valueOf(writeProperty));
-        if ((characteristic.getProperties() & writeProperty) == 0) {
-            Log.e(TAG, "write_or_read" + characteristic.getUuid() +  writeType);
-        }
-        return writeProperty;
+        quitDialog.setPositiveButton("Да!", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                clearUI();
+                finish();
+            }
+        });
+
+        quitDialog.setNegativeButton("Нет", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+            }
+        });
+        quitDialog.show();
     }*/
 }

@@ -209,6 +209,11 @@ public class DeviceScanActivity extends ListActivity {
 
         Log.d(TAG, "onListItemClick getDeviceByPosition " + position);
         if (device == null) return;
+        connectWithDevice(device);
+    }
+
+    public void connectWithDevice(BluetoothDevice device){
+
         final Intent intent = new Intent(this, DeviceControlActivity.class);
         intent.putExtra(DeviceControlActivity.EXTRAS_DEVICE_NAME, device.getName());
         intent.putExtra(DeviceControlActivity.EXTRAS_DEVICE_ADDRESS, device.getAddress());
@@ -220,6 +225,7 @@ public class DeviceScanActivity extends ListActivity {
             checkScanning = false;
         }
         startActivity(intent);
+
     }
 
     private void scanLowEnergyDevice(final boolean check) {
@@ -293,6 +299,15 @@ public class DeviceScanActivity extends ListActivity {
                                     scanResult.getDevice().getAddress() + ",rssi: " + scanResult.getRssi());*/
 
                             BluetoothDevice bluetoothDevice = scanResult.getDevice();
+
+                            // автоматическое соединение при сопряжении с устройствами Манометра либо с пирометром
+                            if (bluetoothDevice.getAddress().equals("34:14:B5:B1:30:C3") || bluetoothDevice.getAddress().equals("40:BD:32:A0:6E:D6")) {
+
+                                // заметки себе: записать все адреса bluetooth устройств в класс SampleGattAttributes
+                                // заметки себе: подключаться может по названию устройства, а не по мак адресам?
+                                // заметки себе: сделать Тоаст с уведомлением о автоматическом подсоединении с конкретным устройством
+                                connectWithDevice(bluetoothDevice);
+                            }
                             bleDevicesListAdapter.addDeviceToList(bluetoothDevice);
 
                             //уведомляет прикрепленных наблюдателей, что базовые данные были изменены,
@@ -363,7 +378,7 @@ public class DeviceScanActivity extends ListActivity {
     private class BleDevicesListAdapter extends BaseAdapter {
 
         //список обнаруженных BLE устройств
-        private final ArrayList<BluetoothDevice> lowEnergyDevices;
+        public final ArrayList<BluetoothDevice> lowEnergyDevices;
 
         //наполнитель layout`a
         private final LayoutInflater layoutInflater;
@@ -412,7 +427,6 @@ public class DeviceScanActivity extends ListActivity {
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             ViewHolder viewHolder;
-
 
             //Общий код оптимизации ListView.
             if (convertView == null) {

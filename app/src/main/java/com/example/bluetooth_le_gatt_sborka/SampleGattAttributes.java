@@ -10,7 +10,11 @@ public class SampleGattAttributes {
 
     private static HashMap<String, String> attributes = new HashMap<>();
     public static String HEART_RATE_MEASUREMENT = "00002a37-0000-1000-8000-00805f9b34fb";
+    public static String BLOOD_PRESSURE_MEASUREMENT = "00002a35-0000-1000-8000-00805f9b34fb";
     public static String CLIENT_CHARACTERISTIC_CONFIG = "00002902-0000-1000-8000-00805f9b34fb";
+    public static String BLOOD_PRESSURE_SERVICE = "00001810-0000-1000-8000-00805f9b34fb";
+    public static String BATTERY_LEVEL = "00002a19-0000-1000-8000-00805f9b34fb";
+
 
     static {
         //характеристики, скачанные с Bluetooth SIG Specification
@@ -37,7 +41,7 @@ public class SampleGattAttributes {
         attributes.put("00002a07-0000-1000-8000-00805f9b34fb", "Уровень мощности Tx"); // Tx Power Level
 
         attributes.put("0000180f-0000-1000-8000-00805f9b34fb", "Батарея"); // Battery (service)
-        attributes.put("00002a19-0000-1000-8000-00805f9b34fb", "Уровень Батареи"); // Battery Level
+        attributes.put(BATTERY_LEVEL, "Уровень Батареи"); // Battery Level
 
         attributes.put("0000fff0-0000-1000-8000-00805f9b34fb", "Unknown Custom Service"); // Unknown service (service)
         attributes.put("0000fff1-0000-1000-8000-00805f9b34fb", "Unknown Custom Characteristic"); // Unknown characteristic
