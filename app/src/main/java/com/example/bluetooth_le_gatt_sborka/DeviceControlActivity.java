@@ -1,6 +1,7 @@
 package com.example.bluetooth_le_gatt_sborka;
 
 import android.app.Activity;
+import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.content.BroadcastReceiver;
@@ -19,9 +20,12 @@ import android.widget.ExpandableListView;
 import android.widget.SimpleExpandableListAdapter;
 import android.widget.TextView;
 
+import androidx.core.view.InputDeviceCompat;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.UUID;
 
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_BROADCAST;
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_EXTENDED_PROPS;
@@ -52,6 +56,7 @@ public class DeviceControlActivity extends Activity {
     private TextView
             connectionStatus,
             dataField,
+            measurementsField,
             writeTypeField;
     private String
             deviceName,
@@ -104,8 +109,12 @@ public class DeviceControlActivity extends Activity {
             } else if (BluetoothLEService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
                 //Показать все поддерживаемые услуги и характеристики в пользовательском интерфейсе.
                 displayGattServices(bluetoothLEService.getSupportedGattServices());
+
+
             } else if (BluetoothLEService.ACTION_DATA_AVAILABLE.equals(action)) {
                 displayData(intent.getStringExtra(BluetoothLEService.EXTRA_DATA));
+                if (deviceAddress.equals(SampleGattAttributes.MANOMETER_ADDRESS))
+                    displayMeasurements(intent.getStringExtra(BluetoothLEService.MEASUREMENTS_DATA));
             }
 
             if (intent.getStringExtra("writeType") != null) {
@@ -141,10 +150,7 @@ public class DeviceControlActivity extends Activity {
                             // чтобы оно не обновляло поле данных в пользовательском интерфейсе.
                             if (notifyCharacteristic != null) {
                                 // Не знаю зачем нужна ветка. Просто адаптировал под новую функцию [Danil]
-                                if (characteristic.getUuid().equals(UUID_HEART_RATE_MEASUREMENT))
-                                    bluetoothLEService.setNotification(notifyCharacteristic, false);
-                                else
-                                    bluetoothLEService.setCharacteristicNotification(notifyCharacteristic, false);
+                                bluetoothLEService.setNotification(notifyCharacteristic, false);
                                 notifyCharacteristic = null;
                             }
                             bluetoothLEService.readCharacteristic(characteristic);
@@ -154,7 +160,7 @@ public class DeviceControlActivity extends Activity {
                             if (characteristic.getUuid().equals(UUID_HEART_RATE_MEASUREMENT))
                                 bluetoothLEService.setNotification(notifyCharacteristic, true);
                             else
-                                bluetoothLEService.setCharacteristicNotification(characteristic, true);
+                                bluetoothLEService.setNotification(characteristic, true);
                         }
                         return true;
                     }
@@ -192,6 +198,7 @@ public class DeviceControlActivity extends Activity {
         connectionStatus = findViewById(R.id.connection_state);
         dataField = findViewById(R.id.data_value);
         writeTypeField = findViewById(R.id.write_type);
+        measurementsField = findViewById(R.id.measurements);
 
         getActionBar().setTitle(deviceName);
         getActionBar().setDisplayHomeAsUpEnabled(true);
@@ -263,6 +270,10 @@ public class DeviceControlActivity extends Activity {
     private void displayData(String data) {
         if (data != null) dataField.setText(data);
         Log.d("DAtaCharacteristic", deviceName + ": " + data);
+    }
+
+    public void displayMeasurements(String measurements) {
+        if (measurements != null) measurementsField.setText(measurements);
     }
 
     private void displayGattServices(List<BluetoothGattService> bluetoothGattServices) {
@@ -352,24 +363,31 @@ public class DeviceControlActivity extends Activity {
     public boolean isReadable(BluetoothGattCharacteristic characteristic) {
         return containsProperty(PROPERTY_READ, characteristic);
     }
+
     public boolean isWritable(BluetoothGattCharacteristic characteristic) {
         return containsProperty(PROPERTY_WRITE, characteristic);
     }
+
     public boolean isBroadcastable(BluetoothGattCharacteristic characteristic) {
         return containsProperty(PROPERTY_BROADCAST, characteristic);
     }
+
     public boolean isSignedWritable(BluetoothGattCharacteristic characteristic) {
         return containsProperty(PROPERTY_SIGNED_WRITE, characteristic);
     }
+
     public boolean isWithExtendedProperties(BluetoothGattCharacteristic characteristic) {
         return containsProperty(PROPERTY_EXTENDED_PROPS, characteristic);
     }
+
     public static boolean isNotify(BluetoothGattCharacteristic characteristic) {
         return containsProperty(PROPERTY_NOTIFY, characteristic);
     }
+
     public static boolean isIndication(BluetoothGattCharacteristic characteristic) {
         return containsProperty(PROPERTY_INDICATE, characteristic);
     }
+
     public boolean isWritableWithoutResponse(BluetoothGattCharacteristic characteristic) {
         return containsProperty(WRITE_TYPE_NO_RESPONSE, characteristic);
     }
@@ -380,6 +398,9 @@ public class DeviceControlActivity extends Activity {
     private static boolean containsProperty(int property, BluetoothGattCharacteristic characteristic) {
         return (characteristic.getProperties() & property) != 0;
     }
+}
+
+
 
     /*@Override
     public void onBackPressed() {
@@ -407,4 +428,4 @@ public class DeviceControlActivity extends Activity {
         });
         quitDialog.show();
     }*/
-}
+
