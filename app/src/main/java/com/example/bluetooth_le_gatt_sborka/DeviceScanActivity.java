@@ -2,6 +2,8 @@ package com.example.bluetooth_le_gatt_sborka;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.AlertDialog.Builder;
 import android.app.ListActivity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -12,6 +14,7 @@ import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -52,6 +55,7 @@ public class DeviceScanActivity extends ListActivity {
     private boolean checkScanning;
     private Handler handler;
     private int permissionCheck;
+    ArrayList<BluetoothDevice> notOpenAlertDialogToConnectThisDevices = new ArrayList<>();
     // Device scan callback KITKAT and below.
     private final BluetoothAdapter.LeScanCallback lowEnergyScanCallback = new BluetoothAdapter.LeScanCallback() {
 
@@ -212,7 +216,7 @@ public class DeviceScanActivity extends ListActivity {
         connectWithDevice(device);
     }
 
-    public void connectWithDevice(BluetoothDevice device){
+    public void connectWithDevice(BluetoothDevice device) {
 
         final Intent intent = new Intent(this, DeviceControlActivity.class);
         intent.putExtra(DeviceControlActivity.EXTRAS_DEVICE_NAME, device.getName());
@@ -220,12 +224,10 @@ public class DeviceScanActivity extends ListActivity {
         if (checkScanning) {
             //останавливается поиск
             startOrStopScanBle("stop");
-
             //bluetoothAdapter.stopLeScan(lowEnergyScanCallback);
             checkScanning = false;
         }
         startActivity(intent);
-
     }
 
     private void scanLowEnergyDevice(final boolean check) {
@@ -300,13 +302,14 @@ public class DeviceScanActivity extends ListActivity {
 
                             BluetoothDevice bluetoothDevice = scanResult.getDevice();
 
-                            // автоматическое соединение при сопряжении с устройствами Манометра либо с пирометром
-                            if (bluetoothDevice.getAddress().equals("34:14:B5:B1:30:C3") || bluetoothDevice.getAddress().equals("40:BD:32:A0:6E:D6")) {
+                            // заметки себе: записать все адреса bluetooth устройств в класс SampleGattAttributes
+                            // заметки себе: подключаться может по названию устройства, а не по мак адресам?
+                            // заметки себе: сделать Тоаст с уведомлением о автоматическом подсоединении с конкретным устройством
 
-                                // заметки себе: записать все адреса bluetooth устройств в класс SampleGattAttributes
-                                // заметки себе: подключаться может по названию устройства, а не по мак адресам?
-                                // заметки себе: сделать Тоаст с уведомлением о автоматическом подсоединении с конкретным устройством
-                                connectWithDevice(bluetoothDevice);
+                            // автоматическое соединение при сопряжении с Манометром u пирометром
+                            if (bluetoothDevice.getAddress().equals(SampleGattAttributes.MANOMETER_ADDRESS) || bluetoothDevice.getAddress().equals(SampleGattAttributes.TESTO_SMART_PYROMETER_ADDRESS)) {
+                                if (!notOpenAlertDialogToConnectThisDevices.contains(bluetoothDevice))
+                                    showConnectionAlertDialog(bluetoothDevice);
                             }
                             bleDevicesListAdapter.addDeviceToList(bluetoothDevice);
 
@@ -368,6 +371,25 @@ public class DeviceScanActivity extends ListActivity {
         }
     }
 
+    public void showConnectionAlertDialog(BluetoothDevice bluetoothDevice) {
+        notOpenAlertDialogToConnectThisDevices.add(bluetoothDevice);
+        AlertDialog.Builder quitDialog = new AlertDialog.Builder(DeviceScanActivity.this);
+        quitDialog.setTitle("Подсоединиться к устройству: " + bluetoothDevice.getName() + " ?");
+
+        quitDialog.setPositiveButton("Да!", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                connectWithDevice(bluetoothDevice);
+            }
+        });
+
+        quitDialog.setNegativeButton("Нет", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+            }
+        });
+        quitDialog.show();
+    }
 
     static class ViewHolder {
         TextView deviceName;

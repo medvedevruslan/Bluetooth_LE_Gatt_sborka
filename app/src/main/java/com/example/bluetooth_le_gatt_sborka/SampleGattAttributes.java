@@ -8,18 +8,35 @@ import java.util.HashMap;
  */
 public class SampleGattAttributes {
 
-    private static HashMap<String, String> attributes = new HashMap<>();
-    public static String HEART_RATE_MEASUREMENT = "00002a37-0000-1000-8000-00805f9b34fb";
-    public static String BLOOD_PRESSURE_MEASUREMENT = "00002a35-0000-1000-8000-00805f9b34fb";
-    public static String CLIENT_CHARACTERISTIC_CONFIG = "00002902-0000-1000-8000-00805f9b34fb";
-    public static String BLOOD_PRESSURE_SERVICE = "00001810-0000-1000-8000-00805f9b34fb";
-    public static String BATTERY_LEVEL = "00002a19-0000-1000-8000-00805f9b34fb";
+    private final static HashMap<String, String> attributes = new HashMap<>();
+    public final static String HEART_RATE_MEASUREMENT = "00002a37-0000-1000-8000-00805f9b34fb";
+    public final static String BLOOD_PRESSURE_MEASUREMENT = "00002a35-0000-1000-8000-00805f9b34fb";
+    public final static String CLIENT_CHARACTERISTIC_CONFIG = "00002902-0000-1000-8000-00805f9b34fb";
+    public final static String BLOOD_PRESSURE_SERVICE = "00001810-0000-1000-8000-00805f9b34fb";
+    public final static String BATTERY_LEVEL = "00002a19-0000-1000-8000-00805f9b34fb";
+    public final static String TESTO_CHARACTERISTIC_CALLBACK = "0000fff2-0000-1000-8000-00805f9b34fb";
+    public final static String TESTO_SERVICE = "0000fff0-0000-1000-8000-00805f9b34fb";
+
+    public final static String TESTO_SMART_PYROMETER_ADDRESS = "40:BD:32:A0:6E:D6";
+    public final static String MICROLIFE_THERMOMETER_ADDRESS = "18:7A:93:BC:6D:80";
+    public final static String MANOMETER_ADDRESS = "34:14:B5:B1:30:C3";
+
+    public final static String TO_TESTO_HEX_1 = "5600030000000c69023e81";
+    public final static String FROM_TESTO_ACCESS = "07000000000001ac";
+    public final static String TO_TESTO_HEX_FIRMWARE_1 = "200000000000077b";
+    public final static String FROM_TESTO_HEX_FIRMWARE_1 = "070004000000009c01000020";
+    public final static String TO_TESTO_HEX_FIRMWARE_2 = "04001500000005930f0000004669726d7761726556657273696f6e304f";
+    public final static String FROM_TESTO_HEX_FIRMWARE_2 = "07001200000004d40c0000003030312e3130312e303030314409";
+    public final static String TESTO_BATTERY_LEVEL = "110000000000035a";
+    public final static String TESTO_MATERIAL = "05001a0000000756100000004d6174657269616c";
+    public final static String TESTO_EMISSION = "456d697373696f6e3333733f0471";
+
+
 
 
     static {
         //характеристики, скачанные с Bluetooth SIG Specification
         // https://btprodspecificationrefs.blob.core.windows.net/assigned-values/16-bit%20UUID%20Numbers%20Document.pdf
-
         // Sample Services.
         attributes.put("0000180d-0000-1000-8000-00805f9b34fb", "Служба измерения пульса"); // Heart Rate Service (service)
         attributes.put("00002a38-0000-1000-8000-00805f9b34fb", "Расположение датчика тела"); // Body Sensor Location
@@ -44,8 +61,8 @@ public class SampleGattAttributes {
         attributes.put(BATTERY_LEVEL, "Уровень Батареи"); // Battery Level
 
         attributes.put("0000fff0-0000-1000-8000-00805f9b34fb", "Unknown Custom Service"); // Unknown service (service)
-        attributes.put("0000fff1-0000-1000-8000-00805f9b34fb", "Unknown Custom Characteristic"); // Unknown characteristic
-        attributes.put("0000fff2-0000-1000-8000-00805f9b34fb", "Unknown Custom Characteristic"); // Unknown characteristic
+        attributes.put("0000fff1-0000-1000-8000-00805f9b34fb", "Testo"); // Unknown characteristic
+        attributes.put("0000fff2-0000-1000-8000-00805f9b34fb", "Testo Measurements"); // Unknown characteristic
 
         attributes.put("0000fff3-0000-1000-8000-00805f9b34fb", "FiRa Consortium"); // FiRa Consortium (service)
         attributes.put("0000fff4-0000-1000-8000-00805f9b34fb", "FiRa Consortium"); // FiRa Consortium

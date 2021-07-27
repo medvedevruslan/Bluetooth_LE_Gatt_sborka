@@ -16,6 +16,8 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
 
+import androidx.core.view.InputDeviceCompat;
+
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
@@ -31,12 +33,15 @@ public class BluetoothLEService extends Service {
             ACTION_GATT_DISCONNECTED = "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_DISCONNECTED",
             ACTION_GATT_SERVICES_DISCOVERED = "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_SERVICES_DISCOVERED",
             ACTION_DATA_AVAILABLE = "com.example.bluetooth_le_gatt_sborka.ACTION_DATA_AVAILABLE",
+            MEASUREMENTS_DATA = "com.example.bluetooth_le_gatt_sborka.MEASUREMENTS_DATA",
             EXTRA_DATA = "com.example.bluetooth_le_gatt_sborka.ACTION_DATA";
     /**
      * UUID для прибора сердечного ритма
      */
     public final static UUID UUID_HEART_RATE_MEASUREMENT = UUID.fromString(SampleGattAttributes.HEART_RATE_MEASUREMENT);
     public final static UUID BLOOD_PRESSURE_MEASUREMENT = UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_MEASUREMENT);
+    public final static UUID TESTO_CHARACTERISTIC_CALLBACK = UUID.fromString(SampleGattAttributes.TESTO_CHARACTERISTIC_CALLBACK);
+    public final static UUID TESTO_SERVICE = UUID.fromString(SampleGattAttributes.TESTO_SERVICE);
     private final static String TAG = "Medvedev1 BLES " + BluetoothLEService.class.getSimpleName();
     private static final int
             STATE_DISCONNECTED = 0,
@@ -47,6 +52,7 @@ public class BluetoothLEService extends Service {
     private BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
     private String bluetoothDeviceAddress;
+    private int statusConnectToTesto = 0;
     private int connectionStatus = STATE_DISCONNECTED;
     //Реализация методов обратного вызова для событий GATT,
     //о которых заботится приложение. Например, изменение подключения и обнаружение служб.
@@ -76,41 +82,34 @@ public class BluetoothLEService extends Service {
         public void onServicesDiscovered(BluetoothGatt bluetoothGatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
 
-                if (bluetoothGatt.getDevice().getAddress().equals("40:BD:32:A0:6E:D6")) { // testo smart
-                    connectionWithTestoSmartPyrometer(bluetoothGatt);
+                switch (bluetoothGatt.getDevice().getAddress()) {
+                    case SampleGattAttributes.TESTO_SMART_PYROMETER_ADDRESS: // testo smart
+                        connectionWithTestoSmartPyrometer(bluetoothGatt);
+                        break;
 
+                    case SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS:  // microlife nc 150bt
+                        //заметка себе: вытащить логику в отдельный метод
+                        BluetoothGattCharacteristic microlifeCharacteristic =
+                                bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
+                                        .getCharacteristic(UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb"));
 
+                        if (setNotification(microlifeCharacteristic, true)) {
+                            Log.d(TAG, "Notifications/indications FFF1 successfully enabled!");
+                            readCharacteristic(microlifeCharacteristic);
+                            Log.d(TAG, "readCharacteristicAfterNotification " + microlifeCharacteristic + " | " + Arrays.toString(microlifeCharacteristic.getValue()));
 
+                        } else
+                            Log.d(TAG, "Notifications/indications FFF1 enabling error!");
 
-
-                } else if (bluetoothGatt.getDevice().getAddress().equals("18:7A:93:BC:6D:80")) { // microlife nc 150bt
-
-                    //заметка себе: вытащить логику в отдельный метод
-
-                    BluetoothGattCharacteristic BtGattCharacteristic =
-                            bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
-                                    .getCharacteristic(UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb"));
-
-                    if (setCharacteristicNotification(BtGattCharacteristic, true)) {
-                        Log.d(TAG, "Notifications/indications FFF1 successfully enabled!");
-                        readCharacteristic(BtGattCharacteristic);
-                        Log.d(TAG, "readCharacteristicAfterNotification " + BtGattCharacteristic + " | " + Arrays.toString(BtGattCharacteristic.getValue()));
-
-                    } else
-                        Log.d(TAG, "Notifications/indications FFF1 enabling error!");
-
-
-
-
-
-                } else if (bluetoothGatt.getDevice().getAddress().equals("34:14:B5:B1:30:C3")) { // manometer AND
-                    if (setIndication(bluetoothGatt, true))
-                        Log.d(TAG, "indication enable");
-                    else
-                        Log.d(TAG, "indication NOT enable");
-                    connectionWithManometer(bluetoothGatt);
+                        break;
+                    case SampleGattAttributes.MANOMETER_ADDRESS:  // manometer AND
+                        if (setIndicationManometer(bluetoothGatt, true))
+                            Log.d(TAG, "indication enable");
+                        else
+                            Log.d(TAG, "indication NOT enable");
+                        connectionWithManometer(bluetoothGatt);
+                        break;
                 }
-
 
                 broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
             } else {
@@ -169,20 +168,95 @@ public class BluetoothLEService extends Service {
         } else {
             //Для всех остальных профилей записывает данные в формате HEX
             Log.d(TAG, "oncharacteristicChanged | " + characteristic.getUuid().toString() + " | " + Arrays.toString(characteristic.getValue()));
-
             final byte[] data = characteristic.getValue();
             if (data != null && data.length > 0) {
-                if (BLOOD_PRESSURE_MEASUREMENT.equals(characteristic.getUuid())) {
-                    Log.d(TAG, "замеры манометром: SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[14]);
-                }
 
-                final StringBuilder stringBuilder = new StringBuilder(data.length);
-                for (byte byteChar : data)
-                    stringBuilder.append(String.format("%02X ", byteChar));
-                intent.putExtra(EXTRA_DATA, new String(data) + "\n" + stringBuilder.toString());
+
+
+
+
+
+
+
+
+
+
+                if (BLOOD_PRESSURE_MEASUREMENT.equals(characteristic.getUuid())) { // manometer
+                    String measurementsFromByte = "замеры манометром: SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[14];
+                    intent.putExtra(MEASUREMENTS_DATA, measurementsFromByte);
+
+
+
+
+
+
+                } else if (TESTO_CHARACTERISTIC_CALLBACK.equals(characteristic.getUuid()) && TESTO_SERVICE.equals(characteristic.getService().getUuid())) {
+                    Log.d(TAG, "ловим сигнал с testo: " + Arrays.toString(characteristic.getValue()));
+
+                    BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
+                            .getCharacteristic(UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb")));
+
+
+
+
+
+                    if (Arrays.equals(characteristic.getValue(), hexToBytes(SampleGattAttributes.FROM_TESTO_ACCESS))) {
+                        switch (statusConnectToTesto) {
+                            case 0:
+                                if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TO_TESTO_HEX_FIRMWARE_1))) {
+                                    if (bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
+                                        statusConnectToTesto = 1;
+                                    }
+                                }
+                                break;
+
+                            case 1:
+                                if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TESTO_MATERIAL))) {
+                                    if (bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
+                                    }
+                                }
+                                timeToChangeCharacteristicOnDevice();
+                                if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TESTO_EMISSION))) {
+                                    if (bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
+                                    }
+                                }
+                                statusConnectToTesto = 2;
+                                break;
+                            case 2:1
+
+                        }
+
+
+
+
+                    } else if (Arrays.equals(characteristic.getValue(), hexToBytes(SampleGattAttributes.FROM_TESTO_HEX_FIRMWARE_1))) {
+                        if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TO_TESTO_HEX_FIRMWARE_2))) {
+                            if (bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
+                            }
+                        }
+                    } else if (Arrays.equals(characteristic.getValue(), hexToBytes(SampleGattAttributes.FROM_TESTO_HEX_FIRMWARE_2))) {
+                        if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TESTO_BATTERY_LEVEL))) {
+                            if (bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
+                            }
+                        }
+                    }
+
+
+
+
+
+
+
+
+
+                    final StringBuilder stringBuilder = new StringBuilder(data.length);
+                    for (byte byteChar : data)
+                        stringBuilder.append(String.format("%02X ", byteChar));
+                    intent.putExtra(EXTRA_DATA, new String(data) + "\n" + stringBuilder.toString());
+                }
             }
+            sendBroadcast(intent);
         }
-        sendBroadcast(intent);
     }
 
     public boolean initialize() {
@@ -266,27 +340,6 @@ public class BluetoothLEService extends Service {
         bluetoothGatt.readCharacteristic(characteristic);
     }
 
-    /**
-     * Включает или отключает уведомление о заданной характеристике.
-     *
-     * @param characteristic характеристики
-     * @param enabled        Если true, включить уведомление
-     * @return true, если включение/отключение завершилось успешно
-     */
-    public boolean setCharacteristicNotification(BluetoothGattCharacteristic characteristic, boolean enabled) {
-        if (bluetoothAdapter == null || bluetoothGatt == null) {
-            Log.d(TAG, "BluetoothAdapter не инициализирован");
-            return false;
-        }
-        // Это относится к измерению частоты пульса.
-//        if (UUID_HEART_RATE_MEASUREMENT.equals(characteristic.getUuid())) {
-//            BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
-//                    UUID.fromString(SampleGattAttributes.CLIENT_CHARACTERISTIC_CONFIG));
-//            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-//            bluetoothGatt.writeDescriptor(descriptor);
-//        }
-        return bluetoothGatt.setCharacteristicNotification(characteristic, enabled);
-    }
 
     public List<BluetoothGattService> getSupportedGattServices() {
         if (bluetoothGatt == null) return null;
@@ -351,36 +404,33 @@ public class BluetoothLEService extends Service {
     //     }
     // }
 
+
     /**
      * Функция попытки подключения к уст-ву [testo 805i или ???].
      * <p>Записывает значение "01-00" в дескриптор 00002902-0000-1000-8000-00805f9b34fb</p>
      */
-    public void setNotification(BluetoothGattCharacteristic characteristic, boolean enabled) {
-        // заметки себе: принимать не характеристику, а BluetoothGatt, чтобы вся логика по извлечению характеристики проходила здесь, а не загромождала там
-        if (bluetoothGatt == null) {
-            Log.e("ConnectionAttempt", "BluetoothGatt is null!");
-            return;
+    public boolean setNotification(BluetoothGattCharacteristic characteristic, boolean enabled) {
+
+        if (bluetoothAdapter == null || bluetoothGatt == null) {
+            Log.d(TAG, "BluetoothAdapter не инициализирован");
+            return false;
         }
         if (characteristic == null) {
-            Log.e("ConnectionAttempt", "Can't get characteristic!");
-            return;
-        }
-        if (setCharacteristicNotification(characteristic, enabled)) {
-            Log.d(TAG, "Notifications/indications fff2 successfully enabled!");
-        } else {
-            Log.e(TAG, "Notifications/indications fff2 enabling error!");
-            return;
+            Log.e(TAG, "Can't get characteristic!");
+            return false;
         }
 
+        boolean isSuccess = bluetoothGatt.setCharacteristicNotification(characteristic, enabled);
         BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString(SampleGattAttributes.CLIENT_CHARACTERISTIC_CONFIG));
         if (descriptor != null) {
-
-            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-            if (bluetoothGatt.writeDescriptor(descriptor))
-                Log.d(TAG, "Successfully writing a value to a descriptor 2902!");
-            else Log.e(TAG, "Error writing value to descriptor 2902!");
-
-        } else Log.e(TAG, "Descriptor 2902 is null!");
+            if (enabled) {
+                descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+            } else {
+                descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+            }
+        }
+        bluetoothGatt.writeDescriptor(descriptor);
+        return isSuccess;
     }
 
     private void connectionWithManometer(BluetoothGatt bluetoothGatt) {
@@ -390,21 +440,14 @@ public class BluetoothLEService extends Service {
         bluetoothGatt.writeCharacteristic(setDateAndTimeValueToCharacteristic(dateAndTimeCharacteristic, Calendar.getInstance()));
     }
 
-    public boolean setIndication(BluetoothGatt bluetoothGatt, boolean enable) {
-        boolean isSuccess = false;
+    public boolean setIndicationManometer(BluetoothGatt bluetoothGatt, boolean enable) {
+        boolean checkingForIndication = false;
         if (bluetoothGatt != null) {
             BluetoothGattService service = bluetoothGatt.getService(UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_SERVICE));
             if (service != null) {
                 BluetoothGattCharacteristic characteristic = service.getCharacteristic(UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_MEASUREMENT));
                 if (characteristic != null) {
-                    isSuccess = bluetoothGatt.setCharacteristicNotification(characteristic, enable);
-                    BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString(SampleGattAttributes.CLIENT_CHARACTERISTIC_CONFIG));
-                    if (enable) {
-                        descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
-                    } else {
-                        descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
-                    }
-                    bluetoothGatt.writeDescriptor(descriptor);
+                    checkingForIndication = setIndication(characteristic, enable);
                 } else {
                     Log.d(TAG, "Characteristic NULL");
                 }
@@ -412,6 +455,18 @@ public class BluetoothLEService extends Service {
                 Log.d(TAG, "Service NULL");
             }
         }
+        return checkingForIndication;
+    }
+
+    public boolean setIndication(BluetoothGattCharacteristic characteristic, boolean enable) {
+        boolean isSuccess = bluetoothGatt.setCharacteristicNotification(characteristic, enable);
+        BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString(SampleGattAttributes.CLIENT_CHARACTERISTIC_CONFIG));
+        if (enable) {
+            descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
+        } else {
+            descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+        }
+        bluetoothGatt.writeDescriptor(descriptor);
         return isSuccess;
     }
 
@@ -430,10 +485,77 @@ public class BluetoothLEService extends Service {
         return characteristic;
     }
 
+    public static byte[] hexToBytes(String str) {
+        char[] charArray = str.toCharArray();
+        int length = charArray.length / 2;
+        byte[] bArr = new byte[length];
+        for (int i = 0; i < length; i++) {
+            int i2 = i * 2;
+            int digit = Character.digit(charArray[i2 + 1], 16) | (Character.digit(charArray[i2], 16) << 4);
+            if (digit > 127) {
+                digit += InputDeviceCompat.SOURCE_ANY;
+            }
+            bArr[i] = (byte) digit;
+        }
+        return bArr;
+    }
+
+    /*  public static byte[] hexStringToByteArray(String s) {
+          int len = s.length();
+          byte[] data = new byte[len / 2];
+          for (int i = 0; i < len; i += 2) {
+              data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
+                      + Character.digit(s.charAt(i + 1), 16));
+          }
+          return data;
+      }
+  */
     public void connectionWithTestoSmartPyrometer(BluetoothGatt bluetoothGatt) {
-        /*
+
+        if (setNotification(bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
+                .getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb")), true)) {
+
+            BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
+                    .getCharacteristic(UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb")));
+            BluetoothGattCharacteristic testoCharacteristicCallback = (bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
+                    .getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb")));
+
+            if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TO_TESTO_HEX_1))) {
+                bluetoothGatt.writeCharacteristic(testoCharacteristic);
+            } else {
+                Log.d(TAG, "TESTO ERROR 0");
+                return;
+            }
 
 
+            timeToChangeCharacteristicOnDevice();
+            if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TESTO_EMISSION))) {
+                bluetoothGatt.writeCharacteristic(testoCharacteristic);
+            }
+            Log.d(TAG, " TESTO ERROR 4");
+        }
+        Log.d(TAG, " TESTO ERROR 3");
+
+
+    }
+
+    public void timeToChangeCharacteristicOnDevice() {
+        Thread oneSecondThread = new Thread() {
+            public void run() {
+                try {
+                    sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+        oneSecondThread.start();
+    }
+}
+
+
+
+/*
 
 0)fff2 notification +++
 
@@ -442,11 +564,6 @@ public class BluetoothLEService extends Service {
 
 1.1) from fff2
 07000000000001ac (Без реакции на смартфоне)
-
-
-
-
-
 
 
 проверить можно ли без этих запросов {
@@ -472,16 +589,11 @@ a1) from fff2
 6.1) from fff2
 07000000000001ac
 
-потом приходит значение температуры в 2х пакетах с определенной периодичностью, пример:
+потом приходит уровень батареи в 2х пакетах с определенной периодичностью, пример:
 108016000000071d0c000000426174746572794c
 6576656ca2c9b8423206
 
-
 }
-
-
-
-
 
 
 7) to fff1  (material)
@@ -493,24 +605,10 @@ a1) from fff2
 8.1) from fff2
 07000000000001ac
 
-9) from fff2 (после нажатия на кнопку на устройстве)
+9.1) from fff2 (после нажатия на кнопку на устройстве)
 108012000000062d0b000000427574746f6e436c
 69636b01fae8
 
-10) значения температур по fff2 в 2х пакетах
-
-
-
-
-
-        if (setCharacteristicNotification(bluetoothGatt.getService(UUID.fromString("00001801-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("00002a05-0000-1000-8000-00805f9b34fb")), true)) {
-            Log.d(TAG, "Notifications/indications 2A05 successfully enabled!");
-            // постановка на уведомление и изменение дескриптора
-            setNotification(bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb")), true);
-        } else
-            Log.e("ConnectionAttempt0", "Notifications/indications 2A05 enabling error!");
+9.2) значения температур по fff2 в 2х пакетах
 
 */
-    }
-
-}
