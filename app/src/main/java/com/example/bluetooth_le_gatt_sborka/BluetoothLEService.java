@@ -42,7 +42,7 @@ public class BluetoothLEService extends Service {
     public final static UUID BLOOD_PRESSURE_MEASUREMENT = UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_MEASUREMENT);
     public final static UUID TESTO_CHARACTERISTIC_CALLBACK = UUID.fromString(SampleGattAttributes.TESTO_CHARACTERISTIC_CALLBACK);
     public final static UUID TESTO_SERVICE = UUID.fromString(SampleGattAttributes.TESTO_SERVICE);
-    private final static String TAG = "Medvedev1 BLES " + BluetoothLEService.class.getSimpleName();
+    private final static String TAG = "Medvedev1 BLES";
     private static final int
             STATE_DISCONNECTED = 0,
             STATE_CONNECTING = 1,
@@ -167,18 +167,9 @@ public class BluetoothLEService extends Service {
 
         } else {
             //Для всех остальных профилей записывает данные в формате HEX
-            Log.d(TAG, "oncharacteristicChanged | " + characteristic.getUuid().toString() + " | " + Arrays.toString(characteristic.getValue()));
+            // Log.d(TAG, "oncharacteristicChanged | " + characteristic.getUuid().toString() + " | " + Arrays.toString(characteristic.getValue()));
             final byte[] data = characteristic.getValue();
             if (data != null && data.length > 0) {
-
-
-
-
-
-
-
-
-
 
 
                 if (BLOOD_PRESSURE_MEASUREMENT.equals(characteristic.getUuid())) { // manometer
@@ -186,19 +177,11 @@ public class BluetoothLEService extends Service {
                     intent.putExtra(MEASUREMENTS_DATA, measurementsFromByte);
 
 
-
-
-
-
                 } else if (TESTO_CHARACTERISTIC_CALLBACK.equals(characteristic.getUuid()) && TESTO_SERVICE.equals(characteristic.getService().getUuid())) {
-                    Log.d(TAG, "ловим сигнал с testo: " + Arrays.toString(characteristic.getValue()));
+                    // Log.d(TAG, "ловим сигнал с testo: " + Arrays.toString(characteristic.getValue()));
 
                     BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
                             .getCharacteristic(UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb")));
-
-
-
-
 
                     if (Arrays.equals(characteristic.getValue(), hexToBytes(SampleGattAttributes.FROM_TESTO_ACCESS))) {
                         switch (statusConnectToTesto) {
@@ -212,41 +195,44 @@ public class BluetoothLEService extends Service {
 
                             case 1:
                                 if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TESTO_MATERIAL))) {
-                                    if (bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
+                                    if (!bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
+                                        Log.d(TAG, "TESTO ERROR 4");
                                     }
                                 }
                                 timeToChangeCharacteristicOnDevice();
                                 if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TESTO_EMISSION))) {
-                                    if (bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
+                                    if (!bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
+                                        Log.d(TAG, "TESTO ERROR 5");
                                     }
                                 }
-                                statusConnectToTesto = 2;
                                 break;
-                            case 2:1
-
                         }
-
-
-
 
                     } else if (Arrays.equals(characteristic.getValue(), hexToBytes(SampleGattAttributes.FROM_TESTO_HEX_FIRMWARE_1))) {
                         if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TO_TESTO_HEX_FIRMWARE_2))) {
-                            if (bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
-                            }
+                            bluetoothGatt.writeCharacteristic(testoCharacteristic);
                         }
                     } else if (Arrays.equals(characteristic.getValue(), hexToBytes(SampleGattAttributes.FROM_TESTO_HEX_FIRMWARE_2))) {
                         if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TESTO_BATTERY_LEVEL))) {
-                            if (bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
-                            }
+                            bluetoothGatt.writeCharacteristic(testoCharacteristic);
                         }
+                    } else if ((Arrays.equals(characteristic.getValue(), new byte[]{16, -128, 30, 0, 0, 0, 5, 125, 18, 0, 0, 0, 83, 117, 114, 102, 97, 99, 101, 84}))) {
+                        Log.d(TAG, "SurfaceTemperature");
+
+                    } else if ((Arrays.equals(characteristic.getValue(), new byte[]{16, -128, 18, 0, 0, 0, 6, 45, 11, 0, 0, 0, 66, 117, 116, 116, 111, 110, 67, 108}))) {
+                        Log.d(TAG, "ButtonClick");
+
+                    } else if ((Arrays.equals(characteristic.getValue(), new byte[]{105, 99, 107, 1, -6, -24}))) {
+                        Log.d(TAG, "ON");
+
+                    } else if ((Arrays.equals(characteristic.getValue(), new byte[]{105, 99, 107, 0, 59, 40}))) {
+                        Log.d(TAG, "OFF");
+
+                    } else if ((Arrays.equals(characteristic.getValue(), new byte[]{16, -128, 22, 0, 0, 0, 7, 29, 12, 0, 0, 0, 66, 97, 116, 116, 101, 114, 121, 76}))) {
+                        Log.d(TAG, "Battery Level");
+                    } else {
+                        Log.d(TAG, "callback from FFF2 | " + Arrays.toString(characteristic.getValue()));
                     }
-
-
-
-
-
-
-
 
 
                     final StringBuilder stringBuilder = new StringBuilder(data.length);
@@ -517,33 +503,24 @@ public class BluetoothLEService extends Service {
 
             BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
                     .getCharacteristic(UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb")));
-            BluetoothGattCharacteristic testoCharacteristicCallback = (bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
-                    .getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb")));
-
+            timeToChangeCharacteristicOnDevice();
             if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TO_TESTO_HEX_1))) {
-                bluetoothGatt.writeCharacteristic(testoCharacteristic);
+                if (!bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
+                    Log.d(TAG, "TESTO ERROR 1");
+                }
             } else {
                 Log.d(TAG, "TESTO ERROR 0");
-                return;
             }
-
-
-            timeToChangeCharacteristicOnDevice();
-            if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TESTO_EMISSION))) {
-                bluetoothGatt.writeCharacteristic(testoCharacteristic);
-            }
-            Log.d(TAG, " TESTO ERROR 4");
+        } else {
+            Log.d(TAG, " TESTO ERROR 3");
         }
-        Log.d(TAG, " TESTO ERROR 3");
-
-
     }
 
     public void timeToChangeCharacteristicOnDevice() {
         Thread oneSecondThread = new Thread() {
             public void run() {
                 try {
-                    sleep(1000);
+                    sleep(2000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
