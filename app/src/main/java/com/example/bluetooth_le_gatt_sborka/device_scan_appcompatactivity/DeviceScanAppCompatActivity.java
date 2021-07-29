@@ -1,10 +1,8 @@
-package com.example.bluetooth_le_gatt_sborka;
+package com.example.bluetooth_le_gatt_sborka.device_scan_appcompatactivity;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.ListActivity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
@@ -13,7 +11,6 @@ import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -21,18 +18,22 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.BaseAdapter;
-import android.widget.ListView;
-import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.example.bluetooth_le_gatt_sborka.DeviceControlActivity;
+import com.example.bluetooth_le_gatt_sborka.DeviceScanActivity;
+import com.example.bluetooth_le_gatt_sborka.R;
+import com.example.bluetooth_le_gatt_sborka.SampleGattAttributes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,17 +41,12 @@ import java.util.List;
 /**
  * Для сканирования и отображения доступных устройств Bluetooth LE.
  */
-public class DeviceScanActivity extends ListActivity {
+public class DeviceScanAppCompatActivity extends AppCompatActivity implements Scanning {
 
     public static final String TAG = "Medvedev DSA " + DeviceScanActivity.class.getSimpleName();
-    private static final int REQUEST_ENABLE_BT = 1;
     private static final long SCAN_PERIOD = 10000;
-    int count;
-    BluetoothLeScanner bluetoothLeScanner;
-    ScanSettings bleScanSettings = null;
-    ArrayList bleScanFilters = null;
-    ArrayList<BluetoothDevice> notOpenAlertDialogToConnectThisDevices = new ArrayList<>();
-    private BleDevicesListAdapter bleDevicesListAdapter;
+    // private BleDevicesListAdapter bleDevicesListAdapter;
+    private final RecyclerViewAdapter adapter = new RecyclerViewAdapter(this);
     // Device scan callback KITKAT and below.
     private final BluetoothAdapter.LeScanCallback lowEnergyScanCallback = new BluetoothAdapter.LeScanCallback() {
 
@@ -62,30 +58,36 @@ public class DeviceScanActivity extends ListActivity {
         @Override
         public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
             Log.d(TAG, " onLeScan LeScanCallback lowEnergyScanCallback");
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    Log.d(TAG, "adding device " + device);
-                    bleDevicesListAdapter.addDeviceToList(device);
-                    Log.d(TAG, "lowEnergyScanCallback");
+            runOnUiThread(() -> {
+                Log.d(TAG, "adding device " + device);
+                adapter.addItem(device);
+                Log.d(TAG, "lowEnergyScanCallback");
 
-                    //уведомляет прикрепленных наблюдателей, что базовые данные были изменены,
-                    //и любое представление, отражающее набор данных, должно обновиться.
-                    bleDevicesListAdapter.notifyDataSetChanged();
-                }
+                //уведомляет прикрепленных наблюдателей, что базовые данные были изменены,
+                //и любое представление, отражающее набор данных, должно обновиться.
+                // bleDevicesListAdapter.notifyDataSetChanged();
             });
         }
     };
+    private final ActivityResultLauncher<Intent> mStartForResult = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+        if (result.getResultCode() == RESULT_CANCELED) finish();
+    });
+    BluetoothLeScanner bluetoothLeScanner;
+    ScanSettings bleScanSettings = null;
+    ArrayList<BluetoothDevice> notOpenAlertDialogToConnectThisDevices = new ArrayList<>();
     private BluetoothAdapter bluetoothAdapter;
     private boolean checkScanning;
     private Handler handler;
-    private int permissionCheck;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // getActionBar().setTitle(R.string.title_devices);
-        getActionBar().setTitle("Scan Bluetooth Low Energy Devices");
+        setContentView(R.layout.device_scan_appcompatactivity);
+
+        RecyclerView rcView = findViewById(R.id.rcView);
+        rcView.setLayoutManager(new LinearLayoutManager(this));
+        rcView.setAdapter(adapter);
+
         handler = new Handler(Looper.getMainLooper());
 
         //Используйте эту проверку, чтобы определить, поддерживается ли BLE на устройстве.
@@ -116,7 +118,7 @@ public class DeviceScanActivity extends ListActivity {
     }
 
     public void checkLocationPermission() {
-        permissionCheck = ContextCompat.checkSelfPermission(this,
+        int permissionCheck = ContextCompat.checkSelfPermission(this,
                 Manifest.permission.ACCESS_COARSE_LOCATION);
 
         switch (permissionCheck) {
@@ -156,8 +158,8 @@ public class DeviceScanActivity extends ListActivity {
     public boolean onOptionsItemSelected(MenuItem menuItem) {
         switch (menuItem.getItemId()) {
             case R.id.menu_scan:
-                if (bleDevicesListAdapter != null) {
-                    bleDevicesListAdapter.clearList();
+                if (adapter.isNotEmpty()) {
+                    adapter.clearList();
                 }
                 scanLowEnergyDevice(true);
                 break;
@@ -177,11 +179,11 @@ public class DeviceScanActivity extends ListActivity {
         // на его включение
         if (!bluetoothAdapter.isEnabled()) {
             Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+            mStartForResult.launch(enableBtIntent);
         }
 
-        bleDevicesListAdapter = new BleDevicesListAdapter();
-        setListAdapter(bleDevicesListAdapter);
+        // bleDevicesListAdapter = new BleDevicesListAdapter();
+        // setListAdapter(bleDevicesListAdapter);
 
         /*// Инициализирует адаптер представления списка.
         // поиск устройств при запуске приложения, а конкретно когда запускается onResume
@@ -191,30 +193,12 @@ public class DeviceScanActivity extends ListActivity {
     }
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        // Пользователь решил не включать Bluetooth
-        if (requestCode == REQUEST_ENABLE_BT && resultCode == Activity.RESULT_CANCELED) {
-            finish();
-        }
-    }
-
-    @Override
     protected void onPause() {
         super.onPause();
         scanLowEnergyDevice(false);
-        bleDevicesListAdapter.clearList();
     }
 
     @Override
-    protected void onListItemClick(ListView listView, View view, int position, long id) {
-        final BluetoothDevice device = bleDevicesListAdapter.getDeviceByPosition(position);
-
-        Log.d(TAG, "onListItemClick getDeviceByPosition " + position);
-        if (device == null) return;
-        connectWithDevice(device);
-    }
-
     public void connectWithDevice(BluetoothDevice device) {
 
         final Intent intent = new Intent(this, DeviceControlActivity.class);
@@ -283,7 +267,6 @@ public class DeviceScanActivity extends ListActivity {
                 bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
                 // настройки для поиска термометра, взяты из приложения Microlife
                 bleScanSettings = new ScanSettings.Builder().setScanMode(2).build();
-                bleScanFilters = new ArrayList();
             }
 
             ScanCallback scanCallback = new ScanCallback() {
@@ -310,11 +293,12 @@ public class DeviceScanActivity extends ListActivity {
                                 if (!notOpenAlertDialogToConnectThisDevices.contains(bluetoothDevice))
                                     showConnectionAlertDialog(bluetoothDevice);
                             }
-                            bleDevicesListAdapter.addDeviceToList(bluetoothDevice);
-
-                            //уведомляет прикрепленных наблюдателей, что базовые данные были изменены,
-                            //и любое представление, отражающее набор данных, должно обновиться.
-                            bleDevicesListAdapter.notifyDataSetChanged();
+                            adapter.addItem(bluetoothDevice);
+                            // bleDevicesListAdapter.addDeviceToList(bluetoothDevice);
+//
+                            // //уведомляет прикрепленных наблюдателей, что базовые данные были изменены,
+                            // //и любое представление, отражающее набор данных, должно обновиться.
+                            // bleDevicesListAdapter.notifyDataSetChanged();
                         });
                     }
                 }
@@ -372,104 +356,14 @@ public class DeviceScanActivity extends ListActivity {
 
     public void showConnectionAlertDialog(BluetoothDevice bluetoothDevice) {
         notOpenAlertDialogToConnectThisDevices.add(bluetoothDevice);
-        AlertDialog.Builder quitDialog = new AlertDialog.Builder(DeviceScanActivity.this);
+        AlertDialog.Builder quitDialog = new AlertDialog.Builder(this);
         quitDialog.setTitle("Подсоединиться к устройству: " + bluetoothDevice.getName() + " ?");
 
-        quitDialog.setPositiveButton("Да!", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                connectWithDevice(bluetoothDevice);
-            }
-        });
+        quitDialog.setPositiveButton("Да!", (dialog, which) -> connectWithDevice(bluetoothDevice));
 
-        quitDialog.setNegativeButton("Нет", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-            }
+        quitDialog.setNegativeButton("Нет", (dialog, which) -> {
+
         });
         quitDialog.show();
-    }
-
-    static class ViewHolder {
-        TextView deviceName;
-        TextView deviceAddress;
-    }
-
-    // Адаптер для устройств, обнаруженный при сканировании.
-    private class BleDevicesListAdapter extends BaseAdapter {
-
-        //список обнаруженных BLE устройств
-        public final ArrayList<BluetoothDevice> lowEnergyDevices;
-
-        //наполнитель layout`a
-        private final LayoutInflater layoutInflater;
-
-        //метод для нахождения layout`a в классе
-        public BleDevicesListAdapter() {
-            super();
-            Log.d(TAG, "создание BleDevicesListAdapter");
-            lowEnergyDevices = new ArrayList<>();
-            layoutInflater = DeviceScanActivity.this.getLayoutInflater();
-            Log.d(TAG, DeviceScanActivity.this.getLayoutInflater() + " BleDevicesListAdapter создан");
-        }
-
-        public void addDeviceToList(BluetoothDevice device) {
-
-            //если данный девайс не находится в списке девайсов, то добавляем его
-            if (!lowEnergyDevices.contains(device)) {
-                lowEnergyDevices.add(device);
-            }
-        }
-
-        public BluetoothDevice getDeviceByPosition(int position) {
-            return lowEnergyDevices.get(position);
-        }
-
-        public void clearList() {
-            Log.d(TAG, "clearList. size ArrayList ble devices = " + lowEnergyDevices.size());
-            lowEnergyDevices.clear();
-        }
-
-        @Override
-        public int getCount() {
-            return lowEnergyDevices.size();
-        }
-
-        @Override
-        public Object getItem(int position) {
-            return lowEnergyDevices.get(position);
-        }
-
-        @Override
-        public long getItemId(int position) {
-            return position;
-        }
-
-        @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
-            ViewHolder viewHolder;
-
-            //Общий код оптимизации ListView.
-            if (convertView == null) {
-                convertView = layoutInflater.inflate(R.layout.listitem_device, null);
-                viewHolder = new ViewHolder();
-                viewHolder.deviceAddress = convertView.findViewById(R.id.device_address);
-                viewHolder.deviceName = convertView.findViewById(R.id.device_name);
-                convertView.setTag(viewHolder);
-            } else {
-                viewHolder = (ViewHolder) convertView.getTag();
-            }
-
-            BluetoothDevice device = lowEnergyDevices.get(position);
-            final String deviceName = device.getName();
-            if (deviceName != null && deviceName.length() > 0)
-                viewHolder.deviceName.setText(deviceName);
-            else
-                viewHolder.deviceName.setText(R.string.unknown_device);
-
-            viewHolder.deviceAddress.setText(device.getAddress());
-
-            return convertView;
-        }
     }
 }

@@ -25,7 +25,6 @@ import androidx.core.view.InputDeviceCompat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.UUID;
 
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_BROADCAST;
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_EXTENDED_PROPS;
@@ -35,6 +34,7 @@ import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_READ;
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE;
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_WRITE;
 import static android.bluetooth.BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE;
+import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.ACTION_GATT_CONNECTED;
 import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.UUID_HEART_RATE_MEASUREMENT;
 
 /**
@@ -43,7 +43,6 @@ import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.UUID_HEART
  * поддерживаемых устройством. Действие взаимодействует с {@code BluetoothLeService},
  * который, в свою очередь, взаимодействует с Bluetooth LE API.
  */
-
 public class DeviceControlActivity extends Activity {
 
     public static final String
@@ -97,7 +96,7 @@ public class DeviceControlActivity extends Activity {
         @Override
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
-            if (BluetoothLEService.ACTION_GATT_CONNECTED.equals(action)) {
+            if (action.equals(ACTION_GATT_CONNECTED)) {
                 connected = true;
                 updateConnectionState(R.string.connected);
                 invalidateOptionsMenu();
@@ -354,6 +353,7 @@ public class DeviceControlActivity extends Activity {
 
         return characteristicWithProperties.substring(characteristicWithProperties.indexOf("|") + 2);
     }
+
 
     ///// Вспомогательные функции определения свойств характеристик
 
