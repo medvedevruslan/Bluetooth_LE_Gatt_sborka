@@ -31,6 +31,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -133,6 +134,17 @@ public class DeviceScanActivity extends ListActivity {
                             Manifest.permission.ACCESS_COARSE_LOCATION}, 1);
                 }
                 break;
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 1) {
+            if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
+                Toast.makeText(this, "Без предоставления доступа приложению к определению местоположения модуль Bluetooth не может воспользоваться функционалом Bluetooth Low Energy!", Toast.LENGTH_SHORT).show();
+                finish();
+            }
         }
     }
 

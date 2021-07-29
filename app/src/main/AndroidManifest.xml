@@ -16,9 +16,8 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Holo.Light">
         <activity
-            android:theme="@style/Theme.AppCompat.DayNight.DarkActionBar"
-            android:name=".device_scan_appcompatactivity.DeviceScanAppCompatActivity"
-            android:label="Scan Bluetooth Low Energy Devices">
+            android:theme="@style/Theme.AppCompat.Bluetooth_LE_Gatt_sborka"
+            android:name=".device_scan_appcompatactivity.DeviceScanAppCompatActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
