@@ -1,5 +1,9 @@
 package com.example.bluetooth_le_gatt_sborka;
 
+import static android.bluetooth.BluetoothProfile.STATE_CONNECTED;
+import static android.bluetooth.BluetoothProfile.STATE_CONNECTING;
+import static android.bluetooth.BluetoothProfile.STATE_DISCONNECTED;
+
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -9,7 +13,6 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
-import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
@@ -23,37 +26,33 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.UUID;
 
+
 /**
  * Служба для управления подключением и передачей данных с сервером GATT, размещенным на данном устройстве Bluetooth LE.
  */
 public class BluetoothLEService extends Service {
 
     public final static String
+            TAG = "Medvedev1 BLES",
             ACTION_GATT_CONNECTED = "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_CONNECTED",
             ACTION_GATT_DISCONNECTED = "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_DISCONNECTED",
             ACTION_GATT_SERVICES_DISCOVERED = "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_SERVICES_DISCOVERED",
             ACTION_DATA_AVAILABLE = "com.example.bluetooth_le_gatt_sborka.ACTION_DATA_AVAILABLE",
             MEASUREMENTS_DATA = "com.example.bluetooth_le_gatt_sborka.MEASUREMENTS_DATA",
             EXTRA_DATA = "com.example.bluetooth_le_gatt_sborka.ACTION_DATA";
-    /**
-     * UUID для прибора сердечного ритма
-     */
-    public final static UUID UUID_HEART_RATE_MEASUREMENT = UUID.fromString(SampleGattAttributes.HEART_RATE_MEASUREMENT);
-    public final static UUID BLOOD_PRESSURE_MEASUREMENT = UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_MEASUREMENT);
-    public final static UUID TESTO_CHARACTERISTIC_CALLBACK = UUID.fromString(SampleGattAttributes.TESTO_CHARACTERISTIC_CALLBACK);
-    public final static UUID TESTO_SERVICE = UUID.fromString(SampleGattAttributes.TESTO_SERVICE);
-    private final static String TAG = "Medvedev1 BLES";
-    private static final int
-            STATE_DISCONNECTED = 0,
-            STATE_CONNECTING = 1,
-            STATE_CONNECTED = 2;
+    /** UUID для прибора сердечного ритма */
+    public final static UUID UUID_HEART_RATE_MEASUREMENT = UUID.fromString(SampleGattAttributes.HEART_RATE_MEASUREMENT),
+            BLOOD_PRESSURE_MEASUREMENT = UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_MEASUREMENT),
+            TESTO_CHARACTERISTIC_CALLBACK = UUID.fromString(SampleGattAttributes.TESTO_CHARACTERISTIC_CALLBACK),
+            TESTO_SERVICE = UUID.fromString(SampleGattAttributes.TESTO_SERVICE);
     private final IBinder binder = new LocalBinder();
     protected BluetoothGatt bluetoothGatt;
     private BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
     private String bluetoothDeviceAddress;
-    private int statusConnectToTesto = 0;
-    private int connectionStatus = STATE_DISCONNECTED;
+    private int
+            statusConnectToTesto = 0,
+            connectionStatus = STATE_DISCONNECTED;
     //Реализация методов обратного вызова для событий GATT,
     //о которых заботится приложение. Например, изменение подключения и обнаружение служб.
     public final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
@@ -61,7 +60,7 @@ public class BluetoothLEService extends Service {
         //при изменении состояния подключения
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             String intentAction;
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
+            if (newState == STATE_CONNECTED) {
                 intentAction = ACTION_GATT_CONNECTED;
                 connectionStatus = STATE_CONNECTED;
                 broadcastUpdate(intentAction);
@@ -70,7 +69,7 @@ public class BluetoothLEService extends Service {
                 //discoverServices - Обнаруживает сервисы, предлагаемые удаленным устройством,
                 // а также их характеристики и дескрипторы
                 Log.d(TAG, "Попытка запустить обнаружение сервисов: " + bluetoothGatt.discoverServices());
-            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+            } else if (newState == STATE_DISCONNECTED) {
                 intentAction = ACTION_GATT_DISCONNECTED;
                 connectionStatus = STATE_DISCONNECTED;
                 Log.d(TAG, "Disconnected from GATT server");
@@ -139,6 +138,36 @@ public class BluetoothLEService extends Service {
             broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
         }
     };
+
+    public static BluetoothGattCharacteristic setDateAndTimeValueToCharacteristic(BluetoothGattCharacteristic characteristic, Calendar calendar) {
+        int year = calendar.get(1); //год
+
+        characteristic.setValue(new byte[]{
+                (byte) (year & 255),
+                (byte) (year >> 8),
+                (byte) (calendar.get(2) + 1), // месяц
+                (byte) calendar.get(5), // день
+                (byte) calendar.get(11), // часы
+                (byte) calendar.get(12), // минуты
+                (byte) calendar.get(13) // секунды
+        });
+        return characteristic;
+    }
+
+    public static byte[] hexToBytes(String str) {
+        char[] charArray = str.toCharArray();
+        int length = charArray.length / 2;
+        byte[] bArr = new byte[length];
+        for (int i = 0; i < length; i++) {
+            int i2 = i * 2;
+            int digit = Character.digit(charArray[i2 + 1], 16) | (Character.digit(charArray[i2], 16) << 4);
+            if (digit > 127) {
+                digit += InputDeviceCompat.SOURCE_ANY;
+            }
+            bArr[i] = (byte) digit;
+        }
+        return bArr;
+    }
 
     private void broadcastUpdate(final String action) {
         final Intent intent = new Intent(action);
@@ -317,7 +346,6 @@ public class BluetoothLEService extends Service {
         bluetoothGatt.disconnect();
     }
 
-
     public void readCharacteristic(BluetoothGattCharacteristic characteristic) {
         if (bluetoothAdapter == null || bluetoothGatt == null) {
             Log.d(TAG, "BluetoothAdapter не инициализирован");
@@ -325,7 +353,6 @@ public class BluetoothLEService extends Service {
         }
         bluetoothGatt.readCharacteristic(characteristic);
     }
-
 
     public List<BluetoothGattService> getSupportedGattServices() {
         if (bluetoothGatt == null) return null;
@@ -341,27 +368,9 @@ public class BluetoothLEService extends Service {
     public boolean onUnbind(Intent intent) {
         //После использования данного устройства вы должны убедиться, что вызывается BluetoothGatt.close (),
         // чтобы ресурсы были очищены должным образом.
-        // В этом конкретном примере close () вызывается, когда пользовательский интерфейс отключается от службы.
+        // В этом конкретном примере close() вызывается, когда пользовательский интерфейс отключается от службы
         close();
         return super.onUnbind(intent);
-    }
-
-    /**
-     * После использования данного устройства BLE приложение должно вызвать этот метод,
-     * чтобы обеспечить правильное высвобождение ресурсов.
-     */
-    private void close() {
-        if (bluetoothGatt == null) {
-            return;
-        }
-        bluetoothGatt.close();
-        bluetoothGatt = null;
-    }
-
-    public class LocalBinder extends Binder {
-        BluetoothLEService getService() {
-            return BluetoothLEService.this;
-        }
     }
 
     // /**
@@ -390,6 +399,17 @@ public class BluetoothLEService extends Service {
     //     }
     // }
 
+    /**
+     * После использования данного устройства BLE приложение должно вызвать этот метод,
+     * чтобы обеспечить правильное высвобождение ресурсов.
+     */
+    private void close() {
+        if (bluetoothGatt == null) {
+            return;
+        }
+        bluetoothGatt.close();
+        bluetoothGatt = null;
+    }
 
     /**
      * Функция попытки подключения к уст-ву [testo 805i или ???].
@@ -456,36 +476,6 @@ public class BluetoothLEService extends Service {
         return isSuccess;
     }
 
-    public static BluetoothGattCharacteristic setDateAndTimeValueToCharacteristic(BluetoothGattCharacteristic characteristic, Calendar calendar) {
-        int year = calendar.get(1); //год
-
-        characteristic.setValue(new byte[]{
-                (byte) (year & 255),
-                (byte) (year >> 8),
-                (byte) (calendar.get(2) + 1), // месяц
-                (byte) calendar.get(5), // день
-                (byte) calendar.get(11), // часы
-                (byte) calendar.get(12), // минуты
-                (byte) calendar.get(13) // секунды
-        });
-        return characteristic;
-    }
-
-    public static byte[] hexToBytes(String str) {
-        char[] charArray = str.toCharArray();
-        int length = charArray.length / 2;
-        byte[] bArr = new byte[length];
-        for (int i = 0; i < length; i++) {
-            int i2 = i * 2;
-            int digit = Character.digit(charArray[i2 + 1], 16) | (Character.digit(charArray[i2], 16) << 4);
-            if (digit > 127) {
-                digit += InputDeviceCompat.SOURCE_ANY;
-            }
-            bArr[i] = (byte) digit;
-        }
-        return bArr;
-    }
-
     /*  public static byte[] hexStringToByteArray(String s) {
           int len = s.length();
           byte[] data = new byte[len / 2];
@@ -527,6 +517,12 @@ public class BluetoothLEService extends Service {
             }
         };
         oneSecondThread.start();
+    }
+
+    public class LocalBinder extends Binder {
+        BluetoothLEService getService() {
+            return BluetoothLEService.this;
+        }
     }
 }
 
