@@ -14,8 +14,9 @@ public class SampleGattAttributes {
     public final static String CLIENT_CHARACTERISTIC_CONFIG = "00002902-0000-1000-8000-00805f9b34fb";
     public final static String BLOOD_PRESSURE_SERVICE = "00001810-0000-1000-8000-00805f9b34fb";
     public final static String BATTERY_LEVEL = "00002a19-0000-1000-8000-00805f9b34fb";
-    public final static String TESTO_CHARACTERISTIC_CALLBACK = "0000fff2-0000-1000-8000-00805f9b34fb";
-    public final static String TESTO_SERVICE = "0000fff0-0000-1000-8000-00805f9b34fb";
+    public final static String FFF1_CHARACTERISTIC = "0000fff1-0000-1000-8000-00805f9b34fb";
+    public final static String FFF2_CHARACTERISTIC = "0000fff2-0000-1000-8000-00805f9b34fb";
+    public final static String FFF0_SERVICE = "0000fff0-0000-1000-8000-00805f9b34fb";
 
     public final static String TESTO_SMART_PYROMETER_ADDRESS = "40:BD:32:A0:6E:D6";
     public final static String MICROLIFE_THERMOMETER_ADDRESS = "18:7A:93:BC:6D:80";
@@ -61,8 +62,8 @@ public class SampleGattAttributes {
         attributes.put(BATTERY_LEVEL, "Уровень Батареи"); // Battery Level
 
         attributes.put("0000fff0-0000-1000-8000-00805f9b34fb", "Unknown Custom Service"); // Unknown service (service)
-        attributes.put("0000fff1-0000-1000-8000-00805f9b34fb", "Testo"); // Unknown characteristic
-        attributes.put("0000fff2-0000-1000-8000-00805f9b34fb", "Testo Measurements"); // Unknown characteristic
+        attributes.put(FFF1_CHARACTERISTIC, "FFF1_characteristic"); // Unknown characteristic
+        attributes.put(FFF2_CHARACTERISTIC, "FFF2_characteristic"); // Unknown characteristic
 
         attributes.put("0000fff3-0000-1000-8000-00805f9b34fb", "FiRa Consortium"); // FiRa Consortium (service)
         attributes.put("0000fff4-0000-1000-8000-00805f9b34fb", "FiRa Consortium"); // FiRa Consortium

@@ -307,7 +307,9 @@ public class DeviceScanActivity extends ListActivity {
                             // заметки себе: сделать Тоаст с уведомлением о автоматическом подсоединении с конкретным устройством
 
                             // автоматическое соединение при сопряжении с Манометром u пирометром
-                            if (bluetoothDevice.getAddress().equals(SampleGattAttributes.MANOMETER_ADDRESS) || bluetoothDevice.getAddress().equals(SampleGattAttributes.TESTO_SMART_PYROMETER_ADDRESS)) {
+                            if (bluetoothDevice.getAddress().equals(SampleGattAttributes.MANOMETER_ADDRESS)
+                                    || bluetoothDevice.getAddress().equals(SampleGattAttributes.TESTO_SMART_PYROMETER_ADDRESS)
+                                    || bluetoothDevice.getAddress().equals(SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS)) {
                                 if (!notOpenAlertDialogToConnectThisDevices.contains(bluetoothDevice))
                                     showConnectionAlertDialog(bluetoothDevice);
                             }

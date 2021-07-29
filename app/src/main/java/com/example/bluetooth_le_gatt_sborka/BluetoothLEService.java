@@ -40,8 +40,9 @@ public class BluetoothLEService extends Service {
      */
     public final static UUID UUID_HEART_RATE_MEASUREMENT = UUID.fromString(SampleGattAttributes.HEART_RATE_MEASUREMENT);
     public final static UUID BLOOD_PRESSURE_MEASUREMENT = UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_MEASUREMENT);
-    public final static UUID TESTO_CHARACTERISTIC_CALLBACK = UUID.fromString(SampleGattAttributes.TESTO_CHARACTERISTIC_CALLBACK);
-    public final static UUID TESTO_SERVICE = UUID.fromString(SampleGattAttributes.TESTO_SERVICE);
+    public final static UUID FFF2_CHARACTERISTIC = UUID.fromString(SampleGattAttributes.FFF2_CHARACTERISTIC);
+    public final static UUID FFF1_CHARACTERISTIC = UUID.fromString(SampleGattAttributes.FFF1_CHARACTERISTIC);
+    public final static UUID FFF0_SERVICE = UUID.fromString(SampleGattAttributes.FFF0_SERVICE);
     private final static String TAG = "Medvedev1 BLES";
     private static final int
             STATE_DISCONNECTED = 0,
@@ -95,11 +96,8 @@ public class BluetoothLEService extends Service {
 
                         if (setNotification(microlifeCharacteristic, true)) {
                             Log.d(TAG, "Notifications/indications FFF1 successfully enabled!");
-                            readCharacteristic(microlifeCharacteristic);
-                            Log.d(TAG, "readCharacteristicAfterNotification " + microlifeCharacteristic + " | " + Arrays.toString(microlifeCharacteristic.getValue()));
-
                         } else
-                            Log.d(TAG, "Notifications/indications FFF1 enabling error!");
+                            Log.d(TAG, "Microlife Notifications/indications FFF1 enabling error!");
 
                         break;
                     case SampleGattAttributes.MANOMETER_ADDRESS:  // manometer AND
@@ -176,8 +174,7 @@ public class BluetoothLEService extends Service {
                     String measurementsFromByte = "замеры манометром: SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[14];
                     intent.putExtra(MEASUREMENTS_DATA, measurementsFromByte);
 
-
-                } else if (TESTO_CHARACTERISTIC_CALLBACK.equals(characteristic.getUuid()) && TESTO_SERVICE.equals(characteristic.getService().getUuid())) {
+                } else if (FFF2_CHARACTERISTIC.equals(characteristic.getUuid()) && FFF0_SERVICE.equals(characteristic.getService().getUuid())) {
                     // Log.d(TAG, "ловим сигнал с testo: " + Arrays.toString(characteristic.getValue()));
 
                     BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
@@ -239,6 +236,11 @@ public class BluetoothLEService extends Service {
                     for (byte byteChar : data)
                         stringBuilder.append(String.format("%02X ", byteChar));
                     intent.putExtra(EXTRA_DATA, new String(data) + "\n" + stringBuilder.toString());
+                }
+
+                else if (SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS.equals(bluetoothGatt.getDevice().getAddress()))  {
+                    ThermometerMeasureData thermometerMeasureData = new ThermometerMeasureData();
+                    thermometerMeasureData.handleReceivedMessage(Arrays.toString(characteristic.getValue()));
                 }
             }
             sendBroadcast(intent);
