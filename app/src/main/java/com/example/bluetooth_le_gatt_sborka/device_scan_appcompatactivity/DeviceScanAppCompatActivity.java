@@ -82,6 +82,7 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Sc
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setTitle("Scan Bluetooth Low Energy Devices");
         setContentView(R.layout.device_scan_appcompatactivity);
 
         RecyclerView rcView = findViewById(R.id.rcView);
@@ -161,6 +162,7 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Sc
                 if (adapter.isNotEmpty()) {
                     adapter.clearList();
                 }
+                notOpenAlertDialogToConnectThisDevices.clear();
                 scanLowEnergyDevice(true);
                 break;
             case R.id.menu_stop:
@@ -275,6 +277,8 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Sc
                     super.onScanResult(callbackType, scanResult);
 
                     if (scanResult.getDevice().getName() != null && scanResult.getDevice().getAddress() != null) {
+
+                        Log.d("112121", scanResult.getDevice().getName());
 
                         runOnUiThread(() -> {
 
