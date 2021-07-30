@@ -54,10 +54,10 @@ public class DeviceControlActivity extends Activity {
             LIST_NAME = "NAME",
             LIST_UUID = "UUID";
     private TextView
-            connectionStatus,
-            dataField,
-            measurementsField,
-            writeTypeField;
+            connectionStatus;
+    private TextView dataField;
+    private static TextView measurementsField;
+    private TextView writeTypeField;
     private String
             deviceName,
             deviceAddress;
@@ -272,7 +272,7 @@ public class DeviceControlActivity extends Activity {
         Log.d("DAtaCharacteristic", deviceName + ": " + data);
     }
 
-    public void displayMeasurements(String measurements) {
+    public static void displayMeasurements(String measurements) {
         if (measurements != null) measurementsField.setText(measurements);
     }
 
