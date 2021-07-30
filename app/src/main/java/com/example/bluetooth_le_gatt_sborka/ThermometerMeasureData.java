@@ -1,5 +1,8 @@
 package com.example.bluetooth_le_gatt_sborka;
 
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Message;
 import android.util.Log;
 
 import java.util.Calendar;
@@ -20,30 +23,47 @@ public class ThermometerMeasureData {
     private int month;
     private int year;
     private static final String CMD_REPLY_RESULT_SUCCESS = "81";
-    private StringBuilder hexString;
+    public StringBuilder hexString;
 
-    public void handleReceivedMessage(String valueFromCharacteristic) {
-        Log.d(TAG, "handleReceived message : " + valueFromCharacteristic);
-        String dataWithMeasurementsAndDateTime = valueFromCharacteristic.substring(10, valueFromCharacteristic.length() - 2);
-        valueFromCharacteristic.trim();
-        int cmdFromValue = Integer.parseInt(valueFromCharacteristic.substring(8, 10), 16);
-        Log.d(TAG, "CMD : " + cmdFromValue + " data : " + dataWithMeasurementsAndDateTime);
+    Handler thermoHandler = new Handler(Looper.getMainLooper()) {
 
-        if (cmdFromValue == UPLOAD_MEASURE_DATA) {
-            Log.d(TAG, "UPLOAD_MEASURE_DATA data：" + dataWithMeasurementsAndDateTime);
-            this.hexString = new StringBuilder().append(dataWithMeasurementsAndDateTime);
-            parseDataFromValue();
-            replyUploadMeasureData();
+        public void handleMessage(Message message) {
+            super.handleMessage(message);
+            byte[] value = (byte[]) message.obj;
+            String valueFromCharacteristic = "";
+            String zero = "0";
 
-        } else if (cmdFromValue != SEND_REQUEST) {
-            Log.d(TAG, "neponyatnii signal from Microlife");
-            return;
+            for (int i = 0; i < value.length; i++) {
+                String valueString = Integer.toHexString(value[i]);
+                valueString = valueString.replaceFirst("^f*", "");
+                if (valueString.length() == 1) {
+                    valueString = zero + valueString;
+                }
+                valueFromCharacteristic += valueString;
+                Log.d(TAG, "value to hex 2: " + i + " | " + valueString);
+            }
 
-        } else {
-            Log.d(TAG, "SEND_REQUEST data： " + dataWithMeasurementsAndDateTime);
-            replyMacAddressOrTime();
+            Log.d(TAG, "handleReceived message : " + valueFromCharacteristic);
+            String dataWithMeasurementsAndDateTime = valueFromCharacteristic.substring(10, valueFromCharacteristic.length() - 2);
+            int cmdFromValue = Integer.parseInt(valueFromCharacteristic.substring(8, 10), 16);
+            Log.d(TAG, "CMD : " + cmdFromValue + " data : " + dataWithMeasurementsAndDateTime);
+
+            if (cmdFromValue == UPLOAD_MEASURE_DATA) {
+                Log.d(TAG, "UPLOAD_MEASURE_DATA data：" + dataWithMeasurementsAndDateTime);
+                ThermometerMeasureData.this.hexString = new StringBuilder().append(dataWithMeasurementsAndDateTime);
+                parseDataFromValue();
+                replyUploadMeasureData();
+
+            } else if (cmdFromValue != SEND_REQUEST) {
+                Log.d(TAG, "neponyatnii signal from Microlife");
+                return;
+
+            } else {
+                Log.d(TAG, "SEND_REQUEST data： " + dataWithMeasurementsAndDateTime);
+                replyMacAddressOrTime();
+            }
         }
-    }
+    };
 
     public int parseMeasurement(int i) {
         int parseInt = Integer.parseInt(this.hexString.substring(0, i), 16);
@@ -69,7 +89,7 @@ public class ThermometerMeasureData {
         this.minute = parseInt5Minute;
     }
 
-    public void replyMacAddressOrTime() { // 122 4d41000aa118
+    public void replyMacAddressOrTime() {
         String str = String.format("%02X", Calendar.YEAR % 100) +
                 String.format("%02X", Calendar.MONTH + 1) +
                 String.format("%02X", Calendar.DATE) +
