@@ -96,8 +96,7 @@ public class BluetoothLEService extends Service {
                     case SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS:  // microlife nc 150bt
                         //заметка себе: вытащить логику в отдельный метод
                         BluetoothGattCharacteristic microlifeCharacteristic =
-                                bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
-                                        .getCharacteristic(UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb"));
+                                bluetoothGatt.getService(FFF0_SERVICE).getCharacteristic(FFF1_CHARACTERISTIC);
 
                         if (setNotification(microlifeCharacteristic, true)) {
                             Log.d(TAG, "Notifications/indications FFF1 successfully enabled!");
@@ -515,11 +514,9 @@ public class BluetoothLEService extends Service {
   */
     public void connectionWithTestoSmartPyrometer(BluetoothGatt bluetoothGatt) {
 
-        if (setNotification(bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
-                .getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb")), true)) {
+        if (setNotification(bluetoothGatt.getService(FFF0_SERVICE).getCharacteristic(FFF2_CHARACTERISTIC), true)) {
 
-            BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
-                    .getCharacteristic(UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb")));
+            BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(FFF0_SERVICE).getCharacteristic(FFF1_CHARACTERISTIC));
             timeToChangeCharacteristicOnDevice();
             if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TO_TESTO_HEX_1))) {
                 if (!bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
