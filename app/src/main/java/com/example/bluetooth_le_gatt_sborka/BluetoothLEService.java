@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.UUID;
 
 
+
 /**
  * Служба для управления подключением и передачей данных с сервером GATT, размещенным на данном устройстве Bluetooth LE.
  */
