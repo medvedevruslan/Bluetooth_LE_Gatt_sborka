@@ -17,6 +17,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.Message;
 import android.util.Log;
 
 import androidx.core.view.InputDeviceCompat;
@@ -40,13 +41,17 @@ public class BluetoothLEService extends Service {
             ACTION_DATA_AVAILABLE = "com.example.bluetooth_le_gatt_sborka.ACTION_DATA_AVAILABLE",
             MEASUREMENTS_DATA = "com.example.bluetooth_le_gatt_sborka.MEASUREMENTS_DATA",
             EXTRA_DATA = "com.example.bluetooth_le_gatt_sborka.ACTION_DATA";
-    /** UUID для прибора сердечного ритма */
+    /**
+     * UUID для прибора сердечного ритма
+     */
     public final static UUID UUID_HEART_RATE_MEASUREMENT = UUID.fromString(SampleGattAttributes.HEART_RATE_MEASUREMENT),
             BLOOD_PRESSURE_MEASUREMENT = UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_MEASUREMENT),
-            TESTO_CHARACTERISTIC_CALLBACK = UUID.fromString(SampleGattAttributes.TESTO_CHARACTERISTIC_CALLBACK),
-            TESTO_SERVICE = UUID.fromString(SampleGattAttributes.TESTO_SERVICE);
+            FFF2_CHARACTERISTIC = UUID.fromString(SampleGattAttributes.FFF2_CHARACTERISTIC),
+            FFF1_CHARACTERISTIC = UUID.fromString(SampleGattAttributes.FFF1_CHARACTERISTIC),
+            FFF0_SERVICE = UUID.fromString(SampleGattAttributes.FFF0_SERVICE);
+    public static String codeRepeatCheck = "";
     private final IBinder binder = new LocalBinder();
-    protected BluetoothGatt bluetoothGatt;
+    public static BluetoothGatt bluetoothGatt;
     private BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
     private String bluetoothDeviceAddress;
@@ -73,7 +78,9 @@ public class BluetoothLEService extends Service {
                 intentAction = ACTION_GATT_DISCONNECTED;
                 connectionStatus = STATE_DISCONNECTED;
                 Log.d(TAG, "Disconnected from GATT server");
+                codeRepeatCheck = "";
                 broadcastUpdate(intentAction);
+                connect(bluetoothDeviceAddress);
             }
         }
 
@@ -94,11 +101,8 @@ public class BluetoothLEService extends Service {
 
                         if (setNotification(microlifeCharacteristic, true)) {
                             Log.d(TAG, "Notifications/indications FFF1 successfully enabled!");
-                            readCharacteristic(microlifeCharacteristic);
-                            Log.d(TAG, "readCharacteristicAfterNotification " + microlifeCharacteristic + " | " + Arrays.toString(microlifeCharacteristic.getValue()));
-
                         } else
-                            Log.d(TAG, "Notifications/indications FFF1 enabling error!");
+                            Log.d(TAG, "Microlife Notifications/indications FFF1 enabling error!");
 
                         break;
                     case SampleGattAttributes.MANOMETER_ADDRESS:  // manometer AND
@@ -139,36 +143,6 @@ public class BluetoothLEService extends Service {
         }
     };
 
-    public static BluetoothGattCharacteristic setDateAndTimeValueToCharacteristic(BluetoothGattCharacteristic characteristic, Calendar calendar) {
-        int year = calendar.get(1); //год
-
-        characteristic.setValue(new byte[]{
-                (byte) (year & 255),
-                (byte) (year >> 8),
-                (byte) (calendar.get(2) + 1), // месяц
-                (byte) calendar.get(5), // день
-                (byte) calendar.get(11), // часы
-                (byte) calendar.get(12), // минуты
-                (byte) calendar.get(13) // секунды
-        });
-        return characteristic;
-    }
-
-    public static byte[] hexToBytes(String str) {
-        char[] charArray = str.toCharArray();
-        int length = charArray.length / 2;
-        byte[] bArr = new byte[length];
-        for (int i = 0; i < length; i++) {
-            int i2 = i * 2;
-            int digit = Character.digit(charArray[i2 + 1], 16) | (Character.digit(charArray[i2], 16) << 4);
-            if (digit > 127) {
-                digit += InputDeviceCompat.SOURCE_ANY;
-            }
-            bArr[i] = (byte) digit;
-        }
-        return bArr;
-    }
-
     private void broadcastUpdate(final String action) {
         final Intent intent = new Intent(action);
         sendBroadcast(intent);
@@ -196,21 +170,19 @@ public class BluetoothLEService extends Service {
 
         } else {
             //Для всех остальных профилей записывает данные в формате HEX
-            // Log.d(TAG, "oncharacteristicChanged | " + characteristic.getUuid().toString() + " | " + Arrays.toString(characteristic.getValue()));
+            Log.d(TAG, "oncharacteristicChanged | " + characteristic.getUuid().toString() + " | " + Arrays.toString(characteristic.getValue()));
             final byte[] data = characteristic.getValue();
             if (data != null && data.length > 0) {
-
 
                 if (BLOOD_PRESSURE_MEASUREMENT.equals(characteristic.getUuid())) { // manometer
                     String measurementsFromByte = "замеры манометром: SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[14];
                     intent.putExtra(MEASUREMENTS_DATA, measurementsFromByte);
 
-
-                } else if (TESTO_CHARACTERISTIC_CALLBACK.equals(characteristic.getUuid()) && TESTO_SERVICE.equals(characteristic.getService().getUuid())) {
+                } else if (SampleGattAttributes.TESTO_SMART_PYROMETER_ADDRESS.equals(bluetoothGatt.getDevice().getAddress())) { // testo smart
                     // Log.d(TAG, "ловим сигнал с testo: " + Arrays.toString(characteristic.getValue()));
 
-                    BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
-                            .getCharacteristic(UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb")));
+                    BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(UUID.fromString(SampleGattAttributes.FFF0_SERVICE))
+                            .getCharacteristic(UUID.fromString(SampleGattAttributes.FFF1_CHARACTERISTIC)));
 
                     if (Arrays.equals(characteristic.getValue(), hexToBytes(SampleGattAttributes.FROM_TESTO_ACCESS))) {
                         switch (statusConnectToTesto) {
@@ -259,15 +231,33 @@ public class BluetoothLEService extends Service {
 
                     } else if ((Arrays.equals(characteristic.getValue(), new byte[]{16, -128, 22, 0, 0, 0, 7, 29, 12, 0, 0, 0, 66, 97, 116, 116, 101, 114, 121, 76}))) {
                         Log.d(TAG, "Battery Level");
+
                     } else {
                         Log.d(TAG, "callback from FFF2 | " + Arrays.toString(characteristic.getValue()));
                     }
-
 
                     final StringBuilder stringBuilder = new StringBuilder(data.length);
                     for (byte byteChar : data)
                         stringBuilder.append(String.format("%02X ", byteChar));
                     intent.putExtra(EXTRA_DATA, new String(data) + "\n" + stringBuilder.toString());
+                } else if (SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS.equals(bluetoothGatt.getDevice().getAddress())) {
+                    Log.d(TAG, "characteristic changed on Microlife device");
+                    ThermometerMeasureData thermometerMeasureData = new ThermometerMeasureData();
+
+                    Runnable handleValueThread = new Runnable() {
+                        @Override
+                        public void run() {
+                            Message message = Message.obtain();
+                            message.obj = characteristic.getValue();
+                            thermometerMeasureData.thermoHandler.handleMessage(message);
+                        }
+                    };
+
+                    Thread handleValueFromCharacteristic = new Thread(handleValueThread);
+                    handleValueFromCharacteristic.start();
+
+                } else {
+                    Log.d(TAG, "подключаемое устройство не поддерживается данным приложением");
                 }
             }
             sendBroadcast(intent);
@@ -373,6 +363,24 @@ public class BluetoothLEService extends Service {
         return super.onUnbind(intent);
     }
 
+    /**
+     * После использования данного устройства BLE приложение должно вызвать этот метод,
+     * чтобы обеспечить правильное высвобождение ресурсов.
+     */
+    private void close() {
+        if (bluetoothGatt == null) {
+            return;
+        }
+        bluetoothGatt.close();
+        bluetoothGatt = null;
+    }
+
+    public class LocalBinder extends Binder {
+        BluetoothLEService getService() {
+            return BluetoothLEService.this;
+        }
+    }
+
     // /**
     //  * Функция отправки значения характеристики по UUID
     //  *
@@ -399,17 +407,6 @@ public class BluetoothLEService extends Service {
     //     }
     // }
 
-    /**
-     * После использования данного устройства BLE приложение должно вызвать этот метод,
-     * чтобы обеспечить правильное высвобождение ресурсов.
-     */
-    private void close() {
-        if (bluetoothGatt == null) {
-            return;
-        }
-        bluetoothGatt.close();
-        bluetoothGatt = null;
-    }
 
     /**
      * Функция попытки подключения к уст-ву [testo 805i или ???].
@@ -476,6 +473,36 @@ public class BluetoothLEService extends Service {
         return isSuccess;
     }
 
+    public static BluetoothGattCharacteristic setDateAndTimeValueToCharacteristic(BluetoothGattCharacteristic characteristic, Calendar calendar) {
+        int year = calendar.get(1); //год
+
+        characteristic.setValue(new byte[]{
+                (byte) (year & 255),
+                (byte) (year >> 8),
+                (byte) (calendar.get(2) + 1), // месяц
+                (byte) calendar.get(5), // день
+                (byte) calendar.get(11), // часы
+                (byte) calendar.get(12), // минуты
+                (byte) calendar.get(13) // секунды
+        });
+        return characteristic;
+    }
+
+    public static byte[] hexToBytes(String str) {
+        char[] charArray = str.toCharArray();
+        int length = charArray.length / 2;
+        byte[] bArr = new byte[length];
+        for (int i = 0; i < length; i++) {
+            int i2 = i * 2;
+            int digit = Character.digit(charArray[i2 + 1], 16) | (Character.digit(charArray[i2], 16) << 4);
+            if (digit > 127) {
+                digit += InputDeviceCompat.SOURCE_ANY;
+            }
+            bArr[i] = (byte) digit;
+        }
+        return bArr;
+    }
+
     /*  public static byte[] hexStringToByteArray(String s) {
           int len = s.length();
           byte[] data = new byte[len / 2];
@@ -517,12 +544,6 @@ public class BluetoothLEService extends Service {
             }
         };
         oneSecondThread.start();
-    }
-
-    public class LocalBinder extends Binder {
-        BluetoothLEService getService() {
-            return BluetoothLEService.this;
-        }
     }
 }
 
