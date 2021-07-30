@@ -14,6 +14,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.Message;
 import android.util.Log;
 
 import androidx.core.view.InputDeviceCompat;
@@ -22,6 +23,8 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
 import java.util.UUID;
+
+import javax.xml.xpath.XPathException;
 
 /**
  * Служба для управления подключением и передачей данных с сервером GATT, размещенным на данном устройстве Bluetooth LE.
@@ -165,20 +168,19 @@ public class BluetoothLEService extends Service {
 
         } else {
             //Для всех остальных профилей записывает данные в формате HEX
-            // Log.d(TAG, "oncharacteristicChanged | " + characteristic.getUuid().toString() + " | " + Arrays.toString(characteristic.getValue()));
+            Log.d(TAG, "oncharacteristicChanged | " + characteristic.getUuid().toString() + " | " + Arrays.toString(characteristic.getValue()));
             final byte[] data = characteristic.getValue();
             if (data != null && data.length > 0) {
-
 
                 if (BLOOD_PRESSURE_MEASUREMENT.equals(characteristic.getUuid())) { // manometer
                     String measurementsFromByte = "замеры манометром: SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[14];
                     intent.putExtra(MEASUREMENTS_DATA, measurementsFromByte);
 
-                } else if (FFF2_CHARACTERISTIC.equals(characteristic.getUuid()) && FFF0_SERVICE.equals(characteristic.getService().getUuid())) {
+                } else if (SampleGattAttributes.TESTO_SMART_PYROMETER_ADDRESS.equals(bluetoothGatt.getDevice().getAddress())) { // testo smart
                     // Log.d(TAG, "ловим сигнал с testo: " + Arrays.toString(characteristic.getValue()));
 
-                    BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb"))
-                            .getCharacteristic(UUID.fromString("0000fff1-0000-1000-8000-00805f9b34fb")));
+                    BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(UUID.fromString(SampleGattAttributes.FFF0_SERVICE))
+                            .getCharacteristic(UUID.fromString(SampleGattAttributes.FFF1_CHARACTERISTIC)));
 
                     if (Arrays.equals(characteristic.getValue(), hexToBytes(SampleGattAttributes.FROM_TESTO_ACCESS))) {
                         switch (statusConnectToTesto) {
@@ -227,20 +229,38 @@ public class BluetoothLEService extends Service {
 
                     } else if ((Arrays.equals(characteristic.getValue(), new byte[]{16, -128, 22, 0, 0, 0, 7, 29, 12, 0, 0, 0, 66, 97, 116, 116, 101, 114, 121, 76}))) {
                         Log.d(TAG, "Battery Level");
+
                     } else {
                         Log.d(TAG, "callback from FFF2 | " + Arrays.toString(characteristic.getValue()));
                     }
+
+
+
+
 
 
                     final StringBuilder stringBuilder = new StringBuilder(data.length);
                     for (byte byteChar : data)
                         stringBuilder.append(String.format("%02X ", byteChar));
                     intent.putExtra(EXTRA_DATA, new String(data) + "\n" + stringBuilder.toString());
-                }
-
-                else if (SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS.equals(bluetoothGatt.getDevice().getAddress()))  {
+                } else if (SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS.equals(bluetoothGatt.getDevice().getAddress())) {
+                    Log.d(TAG, "characteristic changed on Microlife device");
                     ThermometerMeasureData thermometerMeasureData = new ThermometerMeasureData();
-                    thermometerMeasureData.handleReceivedMessage(Arrays.toString(characteristic.getValue()));
+
+                    Runnable handleValueThread = new Runnable() {
+                        @Override
+                        public void run() {
+                            Message message = Message.obtain();
+                            message.obj = characteristic.getValue();
+                            thermometerMeasureData.thermoHandler.handleMessage(message);
+                        }
+                    };
+
+                    Thread handleValueFromCharacteristic = new Thread(handleValueThread);
+                    handleValueFromCharacteristic.start();
+
+                } else {
+                    Log.d(TAG, "подключаемое устройство не поддерживается данным приложением");
                 }
             }
             sendBroadcast(intent);
