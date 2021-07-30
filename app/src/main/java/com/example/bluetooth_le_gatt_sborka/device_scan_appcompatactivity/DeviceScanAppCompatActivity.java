@@ -24,6 +24,7 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -31,19 +32,19 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.bluetooth_le_gatt_sborka.DeviceControlActivity;
-import com.example.bluetooth_le_gatt_sborka.DeviceScanActivity;
 import com.example.bluetooth_le_gatt_sborka.R;
 import com.example.bluetooth_le_gatt_sborka.SampleGattAttributes;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
  * Для сканирования и отображения доступных устройств Bluetooth LE.
  */
-public class DeviceScanAppCompatActivity extends AppCompatActivity implements Scanning {
+public class DeviceScanAppCompatActivity extends AppCompatActivity implements Scanning, PermissionsProcessing {
 
-    public static final String TAG = "Medvedev DSA " + DeviceScanActivity.class.getSimpleName();
+    public static final String TAG = "Medvedev DSA " + DeviceScanAppCompatActivity.class.getSimpleName();
     private static final long SCAN_PERIOD = 10000;
     // private BleDevicesListAdapter bleDevicesListAdapter;
     private final RecyclerViewAdapter adapter = new RecyclerViewAdapter(this);
@@ -75,6 +76,13 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Sc
     BluetoothLeScanner bluetoothLeScanner;
     ScanSettings bleScanSettings = null;
     ArrayList<BluetoothDevice> notOpenAlertDialogToConnectThisDevices = new ArrayList<>();
+    /**
+     * Флаг разрешённости всех опасных разрешений приложения пользователем.
+     * <p>
+     * P.S. На данный момент проверяется только разрешение на определение точного местоположения!
+     * </p>
+     */
+    private boolean allPermissionsGranted = false;
     private BluetoothAdapter bluetoothAdapter;
     private boolean checkScanning;
     private Handler handler;
@@ -85,20 +93,22 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Sc
         setTitle("Scan Bluetooth Low Energy Devices");
         setContentView(R.layout.device_scan_appcompatactivity);
 
+        checkBluetoothModule();
+
         RecyclerView rcView = findViewById(R.id.rcView);
         rcView.setLayoutManager(new LinearLayoutManager(this));
         rcView.setAdapter(adapter);
 
         handler = new Handler(Looper.getMainLooper());
 
-        //Используйте эту проверку, чтобы определить, поддерживается ли BLE на устройстве.
-        // Затем вы можете выборочно отключить функции, связанные с BLE.
-        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
-            Toast.makeText(this, "Bluetooth Low Energy не поддерживается на данном устройстве",
-                    Toast.LENGTH_SHORT).show();
-            finish();
-            return;
-        }
+        // // Используйте эту проверку, чтобы определить, поддерживается ли BLE на устройстве.
+        // // Затем вы можете выборочно отключить функции, связанные с BLE.
+        // if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+        //     Toast.makeText(this, "Bluetooth Low Energy не поддерживается на данном устройстве",
+        //             Toast.LENGTH_SHORT).show();
+        //     finish();
+        //     return;
+        // }
 
 
         //Инициализирует адаптер Bluetooth.
@@ -113,29 +123,68 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Sc
             return;
         }
 
-        if (Build.VERSION.SDK_INT >= 23) {
-            checkLocationPermission();
-        }
+        checkPermissions();
     }
 
-    public void checkLocationPermission() {
-        int permissionCheck = ContextCompat.checkSelfPermission(this,
-                Manifest.permission.ACCESS_COARSE_LOCATION);
+    /**
+     * Функция проверки наличия Bluetooth-модуля и его возможности использования технологии
+     * поключения Bluetooth LE
+     * <p>
+     * Завершает приложение при отсутствии необходимого на устройстве
+     * </p>
+     */
+    private void checkBluetoothModule() {
+        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH)) {
+            Toast.makeText(this, "На данном устройстве отсутствует Bluetooth-модуль! Приложение не будет функционировать!", Toast.LENGTH_SHORT).show();
+            finish();
+        }
+        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+            Toast.makeText(this, "Данное устройство не поддерживает возможность подключения Bluetooth LE! Приложение не будет функционировать!", Toast.LENGTH_SHORT).show();
+            finish();
+        }
 
-        switch (permissionCheck) {
-            case PackageManager.PERMISSION_GRANTED:
-                break;
+    }
 
-            case PackageManager.PERMISSION_DENIED:
-                if (ActivityCompat.shouldShowRequestPermissionRationale(this,
-                        android.Manifest.permission.ACCESS_COARSE_LOCATION)) {
-                    Toast.makeText(this, "Требуется доступ к местоположению, чтобы показывать " +
-                            "устройства Bluetooth поблизости", Toast.LENGTH_SHORT).show();
-                } else {
-                    ActivityCompat.requestPermissions(this, new String[]{
-                            Manifest.permission.ACCESS_COARSE_LOCATION}, 1);
+    @Override
+    public void checkPermissions() {
+        ArrayList<String> permissionsList = new ArrayList<>();
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q)
+            permissionsList.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+        else {
+            // permissionsList.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION);
+            permissionsList.add(Manifest.permission.ACCESS_FINE_LOCATION);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                permissionsList.addAll(Arrays.asList(
+                        Manifest.permission.BLUETOOTH_CONNECT,
+                        Manifest.permission.BLUETOOTH_SCAN));
+            }
+        }
+        // Очищаем список опасных разрешений от тех, разрешение для которых уже дано
+        for (int i = 0; i < permissionsList.size(); i++) {
+            String permission = permissionsList.get(i);
+            if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
+                permissionsList.remove(i);
+                i--;
+            }
+        }
+        if (permissionsList.size() > 0) {
+            ActivityCompat.requestPermissions(this, permissionsList.toArray(new String[0]), 13);
+        } else allPermissionsGranted = true;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 13) {
+            if (grantResults.length > 0) {
+                allPermissionsGranted = true;
+                for (int result : grantResults) {
+                    if (result != PackageManager.PERMISSION_GRANTED) {
+                        allPermissionsGranted = false;
+                        break;
+                    }
                 }
-                break;
+            }
         }
     }
 
@@ -159,6 +208,14 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Sc
     public boolean onOptionsItemSelected(MenuItem menuItem) {
         switch (menuItem.getItemId()) {
             case R.id.menu_scan:
+                /*
+                Проверка на предоставление опасных разрешений
+                P.S. на рассмотрении вариант блокирования кнопки до предоставления всех разрешений
+                 */
+                if (!allPermissionsGranted) {
+                    new DialogFragment(this).show(getSupportFragmentManager(), "AlertDialog");
+                    break;
+                }
                 if (adapter.isNotEmpty()) {
                     adapter.clearList();
                 }
@@ -221,15 +278,12 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Sc
         if (check) {
             // Останавливает сканирование по истечении заданного периода сканирования.
             // PostDelayed - задержка по времени
-            handler.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    checkScanning = false;
-                    startOrStopScanBle("stop");
-                    Log.d(TAG, " scanLowEnergyDevice.stopLEScan: " + check);
-                    // invalidateOptionsMenu - перерисовка ActionBar
-                    invalidateOptionsMenu();
-                }
+            handler.postDelayed(() -> {
+                checkScanning = false;
+                startOrStopScanBle("stop");
+                Log.d(TAG, " scanLowEnergyDevice.stopLEScan: " + check);
+                // invalidateOptionsMenu - перерисовка ActionBar
+                invalidateOptionsMenu();
             }, SCAN_PERIOD);
 
 /*            Thread threadStopwatch10Seconds = new Thread(new Runnable() {
