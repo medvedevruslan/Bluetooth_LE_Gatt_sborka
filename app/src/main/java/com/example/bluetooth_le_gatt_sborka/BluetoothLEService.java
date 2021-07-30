@@ -24,7 +24,6 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.UUID;
 
-import javax.xml.xpath.XPathException;
 
 /**
  * Служба для управления подключением и передачей данных с сервером GATT, размещенным на данном устройстве Bluetooth LE.
@@ -46,13 +45,14 @@ public class BluetoothLEService extends Service {
     public final static UUID FFF2_CHARACTERISTIC = UUID.fromString(SampleGattAttributes.FFF2_CHARACTERISTIC);
     public final static UUID FFF1_CHARACTERISTIC = UUID.fromString(SampleGattAttributes.FFF1_CHARACTERISTIC);
     public final static UUID FFF0_SERVICE = UUID.fromString(SampleGattAttributes.FFF0_SERVICE);
+    public static String codeRepeatCheck = "";
     private final static String TAG = "Medvedev1 BLES";
     private static final int
             STATE_DISCONNECTED = 0,
             STATE_CONNECTING = 1,
             STATE_CONNECTED = 2;
     private final IBinder binder = new LocalBinder();
-    protected BluetoothGatt bluetoothGatt;
+    public static BluetoothGatt bluetoothGatt;
     private BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
     private String bluetoothDeviceAddress;
@@ -78,7 +78,9 @@ public class BluetoothLEService extends Service {
                 intentAction = ACTION_GATT_DISCONNECTED;
                 connectionStatus = STATE_DISCONNECTED;
                 Log.d(TAG, "Disconnected from GATT server");
+                codeRepeatCheck = "";
                 broadcastUpdate(intentAction);
+                connect(bluetoothDeviceAddress);
             }
         }
 
@@ -233,11 +235,6 @@ public class BluetoothLEService extends Service {
                     } else {
                         Log.d(TAG, "callback from FFF2 | " + Arrays.toString(characteristic.getValue()));
                     }
-
-
-
-
-
 
                     final StringBuilder stringBuilder = new StringBuilder(data.length);
                     for (byte byteChar : data)
