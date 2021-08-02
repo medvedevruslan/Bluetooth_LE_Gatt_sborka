@@ -151,7 +151,7 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Sc
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q)
             permissionsList.add(Manifest.permission.ACCESS_COARSE_LOCATION);
         else {
-            // permissionsList.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION);
+            permissionsList.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION);
             permissionsList.add(Manifest.permission.ACCESS_FINE_LOCATION);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 permissionsList.addAll(Arrays.asList(

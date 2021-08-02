@@ -1,6 +1,5 @@
 package com.example.bluetooth_le_gatt_sborka;
 
-import android.app.Activity;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.content.BroadcastReceiver;
@@ -10,7 +9,10 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
+import android.os.Message;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -34,6 +36,7 @@ import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_WRITE;
 import static android.bluetooth.BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE;
 import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.ACTION_GATT_CONNECTED;
 import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.UUID_HEART_RATE_MEASUREMENT;
+import androidx.appcompat.app.AppCompatActivity;
 
 /**
  * Для данного устройства BLE это действие предоставляет пользовательский интерфейс для подключения,
@@ -41,7 +44,7 @@ import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.UUID_HEART
  * поддерживаемых устройством. Действие взаимодействует с {@code BluetoothLeService},
  * который, в свою очередь, взаимодействует с Bluetooth LE API.
  */
-public class DeviceControlActivity extends Activity {
+public class DeviceControlActivity extends AppCompatActivity {
 
     public static final String
             EXTRAS_DEVICE_NAME = "DEVICE_NAME",
@@ -201,8 +204,8 @@ public class DeviceControlActivity extends Activity {
         writeTypeField = findViewById(R.id.write_type);
         measurementsField = findViewById(R.id.measurements);
 
-        getActionBar().setTitle(deviceName);
-        getActionBar().setDisplayHomeAsUpEnabled(true);
+        getSupportActionBar().setTitle(deviceName);
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
         Intent gattServiceIntent = new Intent(this, BluetoothLEService.class);
 
@@ -274,7 +277,23 @@ public class DeviceControlActivity extends Activity {
     }
 
     public static void displayMeasurements(String measurements) {
-        if (measurements != null) measurementsField.setText(measurements);
+        if (measurements != null) {
+
+            Handler displayHandler = new Handler(Looper.getMainLooper()) {
+                @Override
+                public void handleMessage(Message msg) {
+                    super.handleMessage(msg);
+                    if (msg.obj != null){
+                        String measurements = msg.obj.toString();
+                        measurementsField.setText(measurements);
+                    }
+                }
+            };
+
+            Message message = new Message();
+            message.obj = measurements;
+            displayHandler.sendMessage(message);
+        }
     }
 
     private void displayGattServices(List<BluetoothGattService> bluetoothGattServices) {
