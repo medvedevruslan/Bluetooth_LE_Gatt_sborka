@@ -183,10 +183,10 @@ public class BluetoothLEService extends Service {
                     BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(UUID.fromString(SampleGattAttributes.FFF0_SERVICE))
                             .getCharacteristic(UUID.fromString(SampleGattAttributes.FFF1_CHARACTERISTIC)));
 
-                    if (Arrays.equals(characteristic.getValue(), hexToBytes(SampleGattAttributes.FROM_TESTO_ACCESS))) {
+                    if (Arrays.equals(characteristic.getValue(), convertHexToByteArray(SampleGattAttributes.FROM_TESTO_ACCESS))) {
                         switch (statusConnectToTesto) {
                             case 0:
-                                if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TO_TESTO_HEX_FIRMWARE_1))) {
+                                if (testoCharacteristic.setValue(convertHexToByteArray(SampleGattAttributes.TO_TESTO_HEX_FIRMWARE_1))) {
                                     if (bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
                                         statusConnectToTesto = 1;
                                     }
@@ -194,13 +194,13 @@ public class BluetoothLEService extends Service {
                                 break;
 
                             case 1:
-                                if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TESTO_MATERIAL))) {
+                                if (testoCharacteristic.setValue(convertHexToByteArray(SampleGattAttributes.TESTO_MATERIAL))) {
                                     if (!bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
                                         Log.d(TAG, "TESTO ERROR 4");
                                     }
                                 }
                                 timeToChangeCharacteristicOnDevice();
-                                if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TESTO_EMISSION))) {
+                                if (testoCharacteristic.setValue(convertHexToByteArray(SampleGattAttributes.TESTO_EMISSION))) {
                                     if (!bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
                                         Log.d(TAG, "TESTO ERROR 5");
                                     }
@@ -208,12 +208,12 @@ public class BluetoothLEService extends Service {
                                 break;
                         }
 
-                    } else if (Arrays.equals(characteristic.getValue(), hexToBytes(SampleGattAttributes.FROM_TESTO_HEX_FIRMWARE_1))) {
-                        if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TO_TESTO_HEX_FIRMWARE_2))) {
+                    } else if (Arrays.equals(characteristic.getValue(), convertHexToByteArray(SampleGattAttributes.FROM_TESTO_HEX_FIRMWARE_1))) {
+                        if (testoCharacteristic.setValue(convertHexToByteArray(SampleGattAttributes.TO_TESTO_HEX_FIRMWARE_2))) {
                             bluetoothGatt.writeCharacteristic(testoCharacteristic);
                         }
-                    } else if (Arrays.equals(characteristic.getValue(), hexToBytes(SampleGattAttributes.FROM_TESTO_HEX_FIRMWARE_2))) {
-                        if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TESTO_BATTERY_LEVEL))) {
+                    } else if (Arrays.equals(characteristic.getValue(), convertHexToByteArray(SampleGattAttributes.FROM_TESTO_HEX_FIRMWARE_2))) {
+                        if (testoCharacteristic.setValue(convertHexToByteArray(SampleGattAttributes.TESTO_BATTERY_LEVEL))) {
                             bluetoothGatt.writeCharacteristic(testoCharacteristic);
                         }
                     } else if ((Arrays.equals(characteristic.getValue(), new byte[]{16, -128, 30, 0, 0, 0, 5, 125, 18, 0, 0, 0, 83, 117, 114, 102, 97, 99, 101, 84}))) {
@@ -487,7 +487,7 @@ public class BluetoothLEService extends Service {
         return characteristic;
     }
 
-    public static byte[] hexToBytes(String str) {
+    public static byte[] convertHexToByteArray(String str) {
         char[] charArray = str.toCharArray();
         int length = charArray.length / 2;
         byte[] bArr = new byte[length];
@@ -518,7 +518,7 @@ public class BluetoothLEService extends Service {
 
             BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(FFF0_SERVICE).getCharacteristic(FFF1_CHARACTERISTIC));
             timeToChangeCharacteristicOnDevice();
-            if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TO_TESTO_HEX_1))) {
+            if (testoCharacteristic.setValue(convertHexToByteArray(SampleGattAttributes.TO_TESTO_HEX_1))) {
                 if (!bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
                     Log.d(TAG, "TESTO ERROR 1");
                 }

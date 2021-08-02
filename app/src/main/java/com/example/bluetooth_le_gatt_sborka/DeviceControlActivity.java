@@ -1,7 +1,6 @@
 package com.example.bluetooth_le_gatt_sborka;
 
 import android.app.Activity;
-import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.content.BroadcastReceiver;
@@ -20,7 +19,6 @@ import android.widget.ExpandableListView;
 import android.widget.SimpleExpandableListAdapter;
 import android.widget.TextView;
 
-import androidx.core.view.InputDeviceCompat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -62,6 +60,9 @@ public class DeviceControlActivity extends Activity {
             deviceAddress;
     private ExpandableListView gattServicesList;
     private BluetoothLEService bluetoothLEService;
+    private BluetoothGattCharacteristic notifyCharacteristic;
+
+
     //Код для управления жизненным циклом службы.
     private final ServiceConnection serviceConnection = new ServiceConnection() {
 
@@ -122,7 +123,7 @@ public class DeviceControlActivity extends Activity {
             }
         }
     };
-    private BluetoothGattCharacteristic notifyCharacteristic;
+
     /**
      * Если выбрана данная характеристика GATT, проверьте наличие поддерживаемых функций.
      * В этом примере демонстрируются функции «Чтение» и «Уведомление».
@@ -161,6 +162,7 @@ public class DeviceControlActivity extends Activity {
                             else
                                 bluetoothLEService.setNotification(characteristic, true);
                         }
+
                         return true;
                     }
                     return false;
@@ -399,33 +401,3 @@ public class DeviceControlActivity extends Activity {
         return (characteristic.getProperties() & property) != 0;
     }
 }
-
-
-
-    /*@Override
-    public void onBackPressed() {
-        super.onBackPressed();
-        openQuitDialog();
-    }
-
-    private void openQuitDialog() {
-        AlertDialog.Builder quitDialog = new AlertDialog.Builder(
-                DeviceControlActivity.this);
-        quitDialog.setTitle("Разорвать соединение с устройством?");
-
-        quitDialog.setPositiveButton("Да!", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                clearUI();
-                finish();
-            }
-        });
-
-        quitDialog.setNegativeButton("Нет", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-            }
-        });
-        quitDialog.show();
-    }*/
-

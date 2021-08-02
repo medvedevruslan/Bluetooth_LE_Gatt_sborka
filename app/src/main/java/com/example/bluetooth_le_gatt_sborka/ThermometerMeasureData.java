@@ -6,8 +6,6 @@ import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
 
-import androidx.core.view.InputDeviceCompat;
-
 import java.util.Date;
 import java.util.UUID;
 
@@ -171,23 +169,8 @@ public class ThermometerMeasureData {
         BluetoothGattCharacteristic thermoCharacteristic = (bluetoothGatt.getService(UUID.fromString(SampleGattAttributes.FFF0_SERVICE))
                 .getCharacteristic(UUID.fromString(SampleGattAttributes.FFF2_CHARACTERISTIC)));
 
-        thermoCharacteristic.setValue(convertHexToByteArray(str));
+        thermoCharacteristic.setValue(BluetoothLEService.convertHexToByteArray(str));
 
         return bluetoothGatt.writeCharacteristic(thermoCharacteristic);
-    }
-
-    public static byte[] convertHexToByteArray(String str) {
-        char[] charArray = str.toCharArray();
-        int length = charArray.length / 2;
-        byte[] bArr = new byte[length];
-        for (int i = 0; i < length; i++) {
-            int i2 = i * 2;
-            int digit = Character.digit(charArray[i2 + 1], 16) | (Character.digit(charArray[i2], 16) << 4);
-            if (digit > 127) {
-                digit += InputDeviceCompat.SOURCE_ANY;
-            }
-            bArr[i] = (byte) digit;
-        }
-        return bArr;
     }
 }
