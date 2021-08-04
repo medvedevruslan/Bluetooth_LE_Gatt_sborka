@@ -175,83 +175,17 @@ public class BluetoothLEService extends Service {
             if (data != null && data.length > 0) {
 
                 if (BLOOD_PRESSURE_MEASUREMENT.equals(characteristic.getUuid())) { // manometer
-                    String measurementsFromByte = "замеры манометром: SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[14];
+                    String measurementsFromByte = "SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[14];
                     intent.putExtra(MEASUREMENTS_DATA, measurementsFromByte);
 
-                }
-                /* else if (SampleGattAttributes.TESTO_SMART_PYROMETER_ADDRESS.equals(bluetoothGatt.getDevice().getAddress())) { // testo smart
-                    // Log.d(TAG, "ловим сигнал с testo: " + Arrays.toString(characteristic.getValue()));
-
-                    BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(UUID.fromString(SampleGattAttributes.FFF0_SERVICE))
-                            .getCharacteristic(UUID.fromString(SampleGattAttributes.FFF1_CHARACTERISTIC)));
-
-                    if (Arrays.equals(characteristic.getValue(), hexToBytes(SampleGattAttributes.FROM_TESTO_ACCESS))) {
-                        switch (statusConnectToTesto) {
-                            case 0:
-                                if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TO_TESTO_HEX_FIRMWARE_1))) {
-                                    if (bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
-                                        statusConnectToTesto = 1;
-                                    }
-                                }
-                                break;
-
-                            case 1:
-                                if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TESTO_MATERIAL))) {
-                                    if (!bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
-                                        Log.d(TAG, "TESTO ERROR 4");
-                                    }
-                                }
-                                timeToChangeCharacteristicOnDevice();
-                                if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TESTO_EMISSION))) {
-                                    if (!bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
-                                        Log.d(TAG, "TESTO ERROR 5");
-                                    }
-                                }
-                                break;
-                        }
-
-                    } else if (Arrays.equals(characteristic.getValue(), hexToBytes(SampleGattAttributes.FROM_TESTO_HEX_FIRMWARE_1))) {
-                        if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TO_TESTO_HEX_FIRMWARE_2))) {
-                            bluetoothGatt.writeCharacteristic(testoCharacteristic);
-                        }
-                    } else if (Arrays.equals(characteristic.getValue(), hexToBytes(SampleGattAttributes.FROM_TESTO_HEX_FIRMWARE_2))) {
-                        if (testoCharacteristic.setValue(hexToBytes(SampleGattAttributes.TESTO_BATTERY_LEVEL))) {
-                            bluetoothGatt.writeCharacteristic(testoCharacteristic);
-                        }
-                    } else if ((Arrays.equals(characteristic.getValue(), new byte[]{16, -128, 30, 0, 0, 0, 5, 125, 18, 0, 0, 0, 83, 117, 114, 102, 97, 99, 101, 84}))) {
-                        Log.d(TAG, "SurfaceTemperature");
-
-                    } else if ((Arrays.equals(characteristic.getValue(), new byte[]{16, -128, 18, 0, 0, 0, 6, 45, 11, 0, 0, 0, 66, 117, 116, 116, 111, 110, 67, 108}))) {
-                        Log.d(TAG, "ButtonClick");
-
-                    } else if ((Arrays.equals(characteristic.getValue(), new byte[]{105, 99, 107, 1, -6, -24}))) {
-                        Log.d(TAG, "ON");
-
-                    } else if ((Arrays.equals(characteristic.getValue(), new byte[]{105, 99, 107, 0, 59, 40}))) {
-                        Log.d(TAG, "OFF");
-
-                    } else if ((Arrays.equals(characteristic.getValue(), new byte[]{16, -128, 22, 0, 0, 0, 7, 29, 12, 0, 0, 0, 66, 97, 116, 116, 101, 114, 121, 76}))) {
-                        Log.d(TAG, "Battery Level");
-
-                    } else {
-                        Log.d(TAG, "callback from FFF2 | " + Arrays.toString(characteristic.getValue()));
-                    }
-
-                    final StringBuilder stringBuilder = new StringBuilder(data.length);
-                    for (byte byteChar : data)
-                        stringBuilder.append(String.format("%02X ", byteChar));
-                    intent.putExtra(EXTRA_DATA, new String(data) + "\n" + stringBuilder.toString());
-                }*/ else if (SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS.equals(bluetoothGatt.getDevice().getAddress())) {
+                } else if (SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS.equals(bluetoothGatt.getDevice().getAddress())) {
                     Log.d(TAG, "characteristic changed on Microlife device");
                     ThermometerMeasureData thermometerMeasureData = new ThermometerMeasureData(this);
 
-                    Runnable handleValueThread = new Runnable() {
-                        @Override
-                        public void run() {
-                            Message message = Message.obtain();
-                            message.obj = characteristic.getValue();
-                            thermometerMeasureData.thermoHandler.handleMessage(message);
-                        }
+                    Runnable handleValueThread = () -> {
+                        Message message = Message.obtain();
+                        message.obj = characteristic.getValue();
+                        thermometerMeasureData.thermoHandler.handleMessage(message);
                     };
 
                     Thread handleValueFromCharacteristic = new Thread(handleValueThread);

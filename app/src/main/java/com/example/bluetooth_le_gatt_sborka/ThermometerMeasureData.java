@@ -105,10 +105,8 @@ public class ThermometerMeasureData {
                 + " | measurementTempearure: " + " | month:" + month + " | day:" + day + " | hour:" + hour + " | minute:" + parseInt5Minute);
 
         Intent intent = new Intent(ACTION_DATA_AVAILABLE);
-        intent.putExtra(MEASUREMENTS_DATA, "Замеры температуры с Microlife: " + measureTemperature);
+        intent.putExtra(MEASUREMENTS_DATA, measureTemperature + " C");
         context.sendBroadcast(intent);
-
-        //DeviceControlActivity.displayMeasurements("Замеры температуры с Microlife: " + measureTemperature);
     }
 
     public void replyMacAddressOrTime(Date date) {
