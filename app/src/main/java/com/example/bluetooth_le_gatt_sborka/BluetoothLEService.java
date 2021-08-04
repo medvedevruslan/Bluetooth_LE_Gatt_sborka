@@ -169,13 +169,15 @@ public class BluetoothLEService extends Service {
             intent.putExtra(EXTRA_DATA, String.valueOf(heartRate));
 
         } else {
-            //Для всех остальных профилей записывает данные в формате HEX
-            Log.d(TAG, "oncharacteristicChanged | " + characteristic.getUuid().toString() + " | " + Arrays.toString(characteristic.getValue()));
             final byte[] data = characteristic.getValue();
             if (data != null && data.length > 0) {
+                //Для всех остальных профилей записывает данные в формате HEX
+                Log.d(TAG, "oncharacteristicChanged | " + characteristic.getUuid().toString() + " | " + Arrays.toString(characteristic.getValue()));
 
                 if (BLOOD_PRESSURE_MEASUREMENT.equals(characteristic.getUuid())) { // manometer
-                    String measurementsFromByte = "SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[14];
+                    String measurementsFromByte;
+                    if (data.length >= 14) measurementsFromByte = "SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[14];
+                    else measurementsFromByte = "SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[7];
                     intent.putExtra(MEASUREMENTS_DATA, measurementsFromByte);
 
                 } else if (SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS.equals(bluetoothGatt.getDevice().getAddress())) {
