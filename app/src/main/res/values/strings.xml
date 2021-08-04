@@ -44,6 +44,7 @@
     <string name="bth_sts_connecting">Подключается</string>
     <string name="bth_sts_listen">Слушает</string>
     <string name="bth_sts_none">Отсутствует</string>
+    <string name="bth_sts_disconnected">Отключено</string>
 
 
     <string name="rep_taicho_caption">Состояние</string>

@@ -48,6 +48,7 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -75,11 +76,11 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
 
     private BluetoothLEService bluetoothLEService;
 
-    public static final String TAG = "Medvedev DSA " + DeviceScanAppCompatActivity.class.getSimpleName();
+    public static final String TAG = DeviceScanAppCompatActivity.class.getSimpleName();
     /**
      * Bluetooth LE
      */
-    private static final long SCAN_PERIOD = 10000;
+    private static final long SCAN_PERIOD = 1000000;
     /**
      * Обработка запроса на включение Bluetooth-модуля устройства
      */
@@ -159,6 +160,7 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
     private boolean
             allPermissionsGranted = false,
             checkScanning;
+            // deviceFound = false;
     private BluetoothAdapter bluetoothAdapter;
     /**
      * Обратный вызов сканирования при API выше 21
@@ -323,6 +325,7 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
         });
         findViewById(R.id.next_term_test).setOnClickListener(view -> {
             device = MICROLIFE_THERMOMETER_ADDRESS;
+            Log.d(TAG, "Нажата кнопка начала измерения температуры");
             if (allPermissionsGranted) {
                 mResult.setTestType("temp_test");
                 scanLowEnergyDevice(true);
@@ -330,6 +333,7 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
         });
         findViewById(R.id.next_pres_test).setOnClickListener(view -> {
             device = MANOMETER_ADDRESS;
+            Log.d(TAG, "Нажата кнопка начала измерения давления");
             if (allPermissionsGranted) {
                 mResult.setTestType("pres_test");
                 scanLowEnergyDevice(true);
@@ -442,7 +446,6 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
             mDialog.dismiss();
             mDialog = null;
         }
-        unregisterReceiver(gattUpdateReceiver);
     }
 
     @Override
@@ -451,39 +454,28 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
         unbindService(serviceConnection);
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-
-        clear();
-        // registerReceiver - регистрация приемника BroadcastReceiver
-        registerReceiver(gattUpdateReceiver, makeGattUpdateIntentFilter());
-        if (bluetoothLEService != null) {
-            // Log.d(TAG, "Connect request result = " + bluetoothLEService.connect(deviceAddress));
-        }
-    }
-
     /**
      * Bluetooth LE
      */
     public void connectWithDevice(BluetoothDevice device) {
+        // deviceFound = true;
         setViewStatus(R.string.bth_sts_connected, device.getName());
 
-        // final Intent intent = new Intent(this, DeviceControlActivity.class);
-        // intent.putExtra(DeviceControlActivity.EXTRAS_DEVICE_NAME, device.getName());
-        // intent.putExtra(DeviceControlActivity.EXTRAS_DEVICE_ADDRESS, device.getAddress());
+        final Intent intent = new Intent(this, DeviceControlActivity.class);
+        intent.putExtra(DeviceControlActivity.EXTRAS_DEVICE_NAME, device.getName());
+        intent.putExtra(DeviceControlActivity.EXTRAS_DEVICE_ADDRESS, device.getAddress());
         if (checkScanning) {
             //останавливается поиск
             startOrStopScanBle(true);
             //bluetoothAdapter.stopLeScan(lowEnergyScanCallback);
             checkScanning = false;
         }
-        // startActivity(intent);
+        startActivity(intent);
 
-        Intent gattServiceIntent = new Intent(this, BluetoothLEService.class);
-
-        if (serviceConnection == null) bindService(gattServiceIntent, serviceConnection(device.getAddress()), BIND_AUTO_CREATE);
-        else bindService(gattServiceIntent, serviceConnection, BIND_AUTO_CREATE);
+        // Intent gattServiceIntent = new Intent(this, BluetoothLEService.class);
+//
+        // if (serviceConnection == null) bindService(gattServiceIntent, serviceConnection(device.getAddress()), BIND_AUTO_CREATE);
+        // else bindService(gattServiceIntent, serviceConnection, BIND_AUTO_CREATE);
     }
 
     /**
@@ -535,7 +527,6 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
                 checkScanning = false;
                 try {
                     bluetoothLeScanner.stopScan(scanCallback);
-                    clear();
                 } catch (Exception e2) {
                     Log.e(TAG, "stopScan error." + e2.getMessage());
                 }
@@ -577,7 +568,6 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
                     finish();
                 }
                 //Автоматически подключается к устройству при успешной инициализации запуска к блютуз параметрам устройства.
-
                 bluetoothLEService.connect(deviceAddress);
             }
 
@@ -588,28 +578,36 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
         };
     }
 
-    private final BroadcastReceiver gattUpdateReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            switch (action) {
-                case ACTION_GATT_CONNECTED:
-                    break;
-                case ACTION_GATT_DISCONNECTED:
-                    break;
-                case ACTION_GATT_SERVICES_DISCOVERED:
-                    break;
-                case ACTION_DATA_AVAILABLE:
-                    displayMeasurements(intent.getStringExtra(BluetoothLEService.MEASUREMENTS_DATA));
-                    break;
-            }
-
-            if (intent.getStringExtra("writeType") != null) {
-                // writeTypeField.setText(intent.getStringExtra("writeType"));
-                Log.d(TAG, "charprop " + intent.getStringExtra("writeType"));
-            }
-        }
-    };
+    // private final BroadcastReceiver gattUpdateReceiver = new BroadcastReceiver() {
+    //     @Override
+    //     public void onReceive(Context context, Intent intent) {
+    //         final String action = intent.getAction();
+    //         switch (action) {
+    //             case ACTION_GATT_CONNECTED:
+    //                 Log.d(TAG, "Подключён к устройству BLE");
+    //                 setViewStatus(R.string.bth_sts_connected, device);
+    //                 break;
+    //             case ACTION_GATT_DISCONNECTED:
+    //                 Log.d(TAG, "Отключён от устройства BLE");
+    //                 setViewStatus(R.string.bth_sts_disconnected, device);
+    //                 break;
+    //             case ACTION_GATT_SERVICES_DISCOVERED:
+    //                 Log.d(TAG, "Получены сервисы устройства BLE");
+    //                 setViewProgress(new Date(), R.string.ac_wait);
+    //                 break;
+    //             case ACTION_DATA_AVAILABLE:
+    //                 Log.d(TAG, "Данные устройства BLE доступны");
+    //                 setViewProgress(new Date(), R.string.ac_trigger);
+    //                 displayMeasurements(intent.getStringExtra(BluetoothLEService.MEASUREMENTS_DATA));
+    //                 break;
+    //         }
+//
+    //         if (intent.getStringExtra("writeType") != null) {
+    //             // writeTypeField.setText(intent.getStringExtra("writeType"));
+    //             Log.d(TAG, "charprop " + intent.getStringExtra("writeType"));
+    //         }
+    //     }
+    // };
 
     /**
      * Функция создания фильтра канала широковещательных сообщений
@@ -625,6 +623,12 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
         return intentFilter;
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        // if (requestCode == 666) deviceFound = false;
+    }
+
     public void displayMeasurements(String measurements) {
         if (measurements != null) {
 
@@ -634,8 +638,14 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
                     super.handleMessage(msg);
                     if (msg.obj != null){
                         String measurements = msg.obj.toString();
-
+                        Date xtime = new Date();
+                        setViewProgress(xtime, R.string.ac_result);
+                        mResult.setAcTime(xtime);
+                        mResult.setAcValue(measurements);
                         //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                        Intent intent = new Intent(getApplication(), Activity3.class);
+                        intent.putExtra(EXTRA_ACRESULT, mResult);
+                        startActivityForResult(intent, 666);
                     }
                 }
             };
