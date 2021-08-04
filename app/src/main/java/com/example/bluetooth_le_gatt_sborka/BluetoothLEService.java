@@ -172,7 +172,7 @@ public class BluetoothLEService extends Service {
             final byte[] data = characteristic.getValue();
             if (data != null && data.length > 0) {
                 //Для всех остальных профилей записывает данные в формате HEX
-                Log.d(TAG, "oncharacteristicChanged | " + characteristic.getUuid().toString() + " | " + Arrays.toString(characteristic.getValue()));
+                Log.d(TAG, "oncharacteristicChanged | " + characteristic.getUuid().toString() + " | " + Arrays.toString(data));
 
                 if (BLOOD_PRESSURE_MEASUREMENT.equals(characteristic.getUuid())) { // manometer
                     String measurementsFromByte;

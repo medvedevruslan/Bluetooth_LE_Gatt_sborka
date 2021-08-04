@@ -2,10 +2,6 @@ package com.example.bluetooth_le_gatt_sborka.device_scan_appcompatactivity;
 
 import static android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY;
 import static com.example.bluetooth_le_gatt_sborka.Activity3.EXTRA_ACRESULT;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.ACTION_DATA_AVAILABLE;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.ACTION_GATT_CONNECTED;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.ACTION_GATT_DISCONNECTED;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.ACTION_GATT_SERVICES_DISCOVERED;
 import static com.example.bluetooth_le_gatt_sborka.BluetoothService.DEVICE_NAME;
 import static com.example.bluetooth_le_gatt_sborka.BluetoothService.MESSAGE_CONNECTION_FAILED;
 import static com.example.bluetooth_le_gatt_sborka.BluetoothService.MESSAGE_CONNECTION_LOST;
@@ -28,11 +24,9 @@ import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
-import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -48,7 +42,6 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -74,8 +67,6 @@ import java.util.List;
  */
 public class DeviceScanAppCompatActivity extends AppCompatActivity implements PermissionsProcessing {
 
-    private BluetoothLEService bluetoothLEService;
-
     public static final String TAG = DeviceScanAppCompatActivity.class.getSimpleName();
     /**
      * Bluetooth LE
@@ -89,6 +80,12 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
             Toast.makeText(this, "Приложение не сможет подключаться к устройствам с отключенным Bluetooth-модулем!", Toast.LENGTH_SHORT).show();
     });
     /**
+     *
+     */
+    private final ActivityResultLauncher<Intent> deviceControlActivity = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+        openedNextActivity = false;
+    });
+    /**
      * Объект для использования API сканирования Bluetooth LE устройств
      */
     BluetoothLeScanner bluetoothLeScanner;
@@ -96,6 +93,7 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
      * Настройки сканирования Bluetooth LE устройств
      */
     ScanSettings bleScanSettings = null;
+    private BluetoothLEService bluetoothLEService;
     private TextView
             viewProgress,
             viewStatus;
@@ -159,9 +157,30 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
      */
     private boolean
             allPermissionsGranted = false,
-            checkScanning;
-            // deviceFound = false;
+            checkScanning,
+            openedNextActivity = false;
+    // deviceFound = false;
     private BluetoothAdapter bluetoothAdapter;
+    /**
+     * Обратный вызов сканирования при API 20 и ниже
+     */
+    private final BluetoothAdapter.LeScanCallback lowEnergyScanCallback = new BluetoothAdapter.LeScanCallback() {
+
+        /**
+         * @param bluetoothDevice название устройства
+         * @param rssi уровень сигнала, чем ниже значение, тем хуже сигнал
+         * @param scanRecord Содержание записи advertising, предлагаемой удаленным устройством.
+         */
+        @Override
+        public void onLeScan(BluetoothDevice bluetoothDevice, int rssi, byte[] scanRecord) {
+            Log.d(TAG, " onLeScan LeScanCallback lowEnergyScanCallback");
+            runOnUiThread(() -> {
+                if (bluetoothDevice.getAddress().equals(device) && !openedNextActivity)
+                    connectWithDevice(bluetoothDevice);
+                Log.d(TAG, "lowEnergyScanCallback");
+            });
+        }
+    };
     /**
      * Обратный вызов сканирования при API выше 21
      */
@@ -182,9 +201,8 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
                     // заметки себе: сделать Тоаст с уведомлением о автоматическом подсоединении с конкретным устройством
 
                     // автоматическое соединение при сопряжении с Манометром u пирометром
-                    if (bluetoothDevice.getAddress().equals(device)) {
+                    if (bluetoothDevice.getAddress().equals(device) && !openedNextActivity)
                         connectWithDevice(bluetoothDevice);
-                    }
                 });
             }
         }
@@ -204,27 +222,7 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
             Log.e(TAG, "onScanFailed, code is : " + errorCode);
         }
     };
-    /**
-     * Обратный вызов сканирования при API 20 и ниже
-     */
-    private final BluetoothAdapter.LeScanCallback lowEnergyScanCallback = new BluetoothAdapter.LeScanCallback() {
-
-        /**
-         * @param bluetoothDevice название устройства
-         * @param rssi уровень сигнала, чем ниже значение, тем хуже сигнал
-         * @param scanRecord Содержание записи advertising, предлагаемой удаленным устройством.
-         */
-        @Override
-        public void onLeScan(BluetoothDevice bluetoothDevice, int rssi, byte[] scanRecord) {
-            Log.d(TAG, " onLeScan LeScanCallback lowEnergyScanCallback");
-            runOnUiThread(() -> {
-                if (bluetoothDevice.getAddress().equals(device)) {
-                    connectWithDevice(bluetoothDevice);
-                }
-                Log.d(TAG, "lowEnergyScanCallback");
-            });
-        }
-    };
+    private ServiceConnection serviceConnection;
 
     /**
      * Функция обрабатывает @param data и отправляет результат теста в другие активити для сохранения в базе данных.
@@ -470,7 +468,8 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
             //bluetoothAdapter.stopLeScan(lowEnergyScanCallback);
             checkScanning = false;
         }
-        startActivity(intent);
+        deviceControlActivity.launch(intent);
+        openedNextActivity = true;
 
         // Intent gattServiceIntent = new Intent(this, BluetoothLEService.class);
 //
@@ -555,7 +554,6 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
             Log.e(TAG, "bluetoothAdapter = null");
         }
     }
-    private ServiceConnection serviceConnection;
 
     //Код для управления жизненным циклом службы.
     private ServiceConnection serviceConnection(String deviceAddress) {
@@ -576,83 +574,5 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
                 bluetoothLEService = null;
             }
         };
-    }
-
-    // private final BroadcastReceiver gattUpdateReceiver = new BroadcastReceiver() {
-    //     @Override
-    //     public void onReceive(Context context, Intent intent) {
-    //         final String action = intent.getAction();
-    //         switch (action) {
-    //             case ACTION_GATT_CONNECTED:
-    //                 Log.d(TAG, "Подключён к устройству BLE");
-    //                 setViewStatus(R.string.bth_sts_connected, device);
-    //                 break;
-    //             case ACTION_GATT_DISCONNECTED:
-    //                 Log.d(TAG, "Отключён от устройства BLE");
-    //                 setViewStatus(R.string.bth_sts_disconnected, device);
-    //                 break;
-    //             case ACTION_GATT_SERVICES_DISCOVERED:
-    //                 Log.d(TAG, "Получены сервисы устройства BLE");
-    //                 setViewProgress(new Date(), R.string.ac_wait);
-    //                 break;
-    //             case ACTION_DATA_AVAILABLE:
-    //                 Log.d(TAG, "Данные устройства BLE доступны");
-    //                 setViewProgress(new Date(), R.string.ac_trigger);
-    //                 displayMeasurements(intent.getStringExtra(BluetoothLEService.MEASUREMENTS_DATA));
-    //                 break;
-    //         }
-//
-    //         if (intent.getStringExtra("writeType") != null) {
-    //             // writeTypeField.setText(intent.getStringExtra("writeType"));
-    //             Log.d(TAG, "charprop " + intent.getStringExtra("writeType"));
-    //         }
-    //     }
-    // };
-
-    /**
-     * Функция создания фильтра канала широковещательных сообщений
-     *
-     * @return фильтр канала широковещательных сообщений
-     */
-    private static IntentFilter makeGattUpdateIntentFilter() {
-        final IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(BluetoothLEService.ACTION_GATT_CONNECTED);
-        intentFilter.addAction(ACTION_GATT_DISCONNECTED);
-        intentFilter.addAction(ACTION_GATT_SERVICES_DISCOVERED);
-        intentFilter.addAction(ACTION_DATA_AVAILABLE);
-        return intentFilter;
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        // if (requestCode == 666) deviceFound = false;
-    }
-
-    public void displayMeasurements(String measurements) {
-        if (measurements != null) {
-
-            Handler displayHandler = new Handler(Looper.getMainLooper()) {
-                @Override
-                public void handleMessage(Message msg) {
-                    super.handleMessage(msg);
-                    if (msg.obj != null){
-                        String measurements = msg.obj.toString();
-                        Date xtime = new Date();
-                        setViewProgress(xtime, R.string.ac_result);
-                        mResult.setAcTime(xtime);
-                        mResult.setAcValue(measurements);
-                        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                        Intent intent = new Intent(getApplication(), Activity3.class);
-                        intent.putExtra(EXTRA_ACRESULT, mResult);
-                        startActivityForResult(intent, 666);
-                    }
-                }
-            };
-
-            Message message = new Message();
-            message.obj = measurements;
-            displayHandler.sendMessage(message);
-        }
     }
 }
