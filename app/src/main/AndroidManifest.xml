@@ -3,24 +3,20 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.example.bluetooth_le_gatt_sborka">
 
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission
         android:name="android.permission.BLUETOOTH"
         android:maxSdkVersion="30" />
     <uses-permission
         android:name="android.permission.BLUETOOTH_ADMIN"
-        android:maxSdkVersion="30" />
-
-    <!-- FINE_LOCATION полностью заменяет COARSE_LOCATION -->
+        android:maxSdkVersion="30" /> <!-- FINE_LOCATION полностью заменяет COARSE_LOCATION -->
     <uses-permission
         android:name="android.permission.ACCESS_COARSE_LOCATION"
-        android:maxSdkVersion="29" />
-
-    <!-- API 29 and higher -->
+        android:maxSdkVersion="29" /> <!-- API 29 and higher -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"
-        android:maxSdkVersion="30"/>
-
-    <!-- API 31 and higher -->
+    <uses-permission
+        android:name="android.permission.ACCESS_BACKGROUND_LOCATION"
+        android:maxSdkVersion="30" /> <!-- API 31 and higher -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission
         android:name="android.permission.BLUETOOTH_SCAN"
@@ -35,6 +31,10 @@
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Holo.Light">
         <activity
+            android:name=".Activity3"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.Bluetooth_LE_Gatt_sborka" />
+        <activity
             android:name=".device_scan_appcompatactivity.DeviceScanAppCompatActivity"
             android:exported="true"
             android:theme="@style/Theme.AppCompat.Bluetooth_LE_Gatt_sborka">
@@ -46,9 +46,7 @@
         </activity>
         <activity
             android:name=".DeviceControlActivity"
-            android:theme="@style/Theme.AppCompat.Bluetooth_LE_Gatt_sborka">
-
-        </activity>
+            android:theme="@style/Theme.AppCompat.Bluetooth_LE_Gatt_sborka" />
 
         <service
             android:name=".BluetoothLEService"

@@ -23,14 +23,14 @@ public class SampleGattAttributes {
     public final static String MANOMETER_ADDRESS = "34:14:B5:B1:30:C3";
 
     public final static String TO_TESTO_HEX_1 = "5600030000000c69023e81";
-    public final static String FROM_TESTO_ACCESS = "07000000000001ac";
-    public final static String TO_TESTO_HEX_FIRMWARE_1 = "200000000000077b";
-    public final static String FROM_TESTO_HEX_FIRMWARE_1 = "070004000000009c01000020";
-    public final static String TO_TESTO_HEX_FIRMWARE_2 = "04001500000005930f0000004669726d7761726556657273696f6e304f";
-    public final static String FROM_TESTO_HEX_FIRMWARE_2 = "07001200000004d40c0000003030312e3130312e303030314409";
-    public final static String TESTO_BATTERY_LEVEL = "110000000000035a";
-    public final static String TESTO_MATERIAL = "05001a0000000756100000004d6174657269616c";
-    public final static String TESTO_EMISSION = "456d697373696f6e3333733f0471";
+    // public final static String FROM_TESTO_ACCESS = "07000000000001ac";
+    // public final static String TO_TESTO_HEX_FIRMWARE_1 = "200000000000077b";
+    // public final static String FROM_TESTO_HEX_FIRMWARE_1 = "070004000000009c01000020";
+    // public final static String TO_TESTO_HEX_FIRMWARE_2 = "04001500000005930f0000004669726d7761726556657273696f6e304f";
+    // public final static String FROM_TESTO_HEX_FIRMWARE_2 = "07001200000004d40c0000003030312e3130312e303030314409";
+    // public final static String TESTO_BATTERY_LEVEL = "110000000000035a";
+    // public final static String TESTO_MATERIAL = "05001a0000000756100000004d6174657269616c";
+    // public final static String TESTO_EMISSION = "456d697373696f6e3333733f0471";
 
 
 

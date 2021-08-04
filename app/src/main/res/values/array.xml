@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <array name="rep_taicho_items">
+        <item>Хорошо</item>
+        <item>Не хорошо</item>
+    </array>
+    <array name="rep_tenken_items">
+        <item>Хорошо</item>
+        <item>Не хорошо</item>
+    </array>
+    <array name="rep_tenkok_items">
+        <item>До поездки</item>
+        <item>В пути</item>
+        <item>После поездки</item>
+    </array>
+</resources>

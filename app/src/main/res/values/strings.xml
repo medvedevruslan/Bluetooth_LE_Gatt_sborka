@@ -21,4 +21,54 @@
     <string name="menu_stop">Stop</string>
     <string name="writetype">Write Type:</string>
     <string name="measurementsFromDevice">Measurements</string>
+
+
+
+    <string name="ac_wait">Ожидайте</string>
+    <string name="ac_stanby">К тесту готов</string>
+    <string name="ac_trigger">В процессе</string>
+    <string name="ac_breath">Взятие пробы</string>
+    <string name="ac_result">Результат получен</string>
+    <string name="ac_flow_err">Недостаточная экспирация</string>
+    <string name="ac_module_err">ОШИБКА МОДУЛЯ</string>
+    <string name="ac_temp_err">ОШИБКА ТЕМПЕРАТУРЫ</string>
+    <string name="ac_calibration">КАЛИБРОВКА</string>
+    <string name="ac_bat_low">НИЗКИЙ УРОВЕНЬ ЗАРЯДА БАТАРЕИ</string>
+    <string name="ac_system_err">СИСТЕМНАЯ ОШИБКА</string>
+    <string name="ac_time_out">ВРЕМЯ ВЫШЛО</string>
+    <string name="ac_sensor_err">ОШИБКА СЕНСОРА</string>
+    <string name="ac_lifetimeover">ЗАКОНЧИЛОСЬ ВРЕМЯ ЖИЗНИ</string>
+    <string name="ac_unknown">Произошла ошибка связи</string>
+
+    <string name="bth_sts_connected">Подключено</string>
+    <string name="bth_sts_connecting">Подключается</string>
+    <string name="bth_sts_listen">Слушает</string>
+    <string name="bth_sts_none">Отсутствует</string>
+
+
+    <string name="rep_taicho_caption">Состояние</string>
+    <string name="rep_tenken_caption">Ежедневная проверка</string>
+    <string name="rep_tenkok_caption">Статус теста</string>
+
+    <string name="err_external_storage_not_mounted">Внешняя память недоступна.</string>
+    <string name="err_external_storage_read_only">Внешняя память недоступна для записи.</string>
+
+    <string name="msg_save_result_failed">Сохранить результат не удалось.</string>
+    <string name="msg_save_result_success">Результат сохранён.</string>
+
+    <string name="connect">Подключиться</string>
+    <string name="cancel">Отмена</string>
+
+    <string name="msg_confirm_power">Убедитесь, что анализатор включен.</string>
+    <string name="msg_test_was_canceled">Тест был отменён.</string>
+    <string name="msg_connection_lost">Соединение утеряно.</string>
+    <string name="msg_notfound_paired_device">Пожалуйста, выполните сопряжение.</string>
+
+    <string name="caption_device">Алкотестер</string>
+    <string name="caption_device2">Манометр</string>
+    <string name="caption_device3">Термометр</string>
+
+    <string name="caption_driver">Водитель</string>
+    <string name="caption_back">Назад</string>
+    <string name="caption_result">Результат</string>
 </resources>

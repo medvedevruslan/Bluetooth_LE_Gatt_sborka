@@ -34,7 +34,10 @@ import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_READ;
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_SIGNED_WRITE;
 import static android.bluetooth.BluetoothGattCharacteristic.PROPERTY_WRITE;
 import static android.bluetooth.BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE;
+import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.ACTION_DATA_AVAILABLE;
 import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.ACTION_GATT_CONNECTED;
+import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.ACTION_GATT_DISCONNECTED;
+import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.ACTION_GATT_SERVICES_DISCOVERED;
 import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.UUID_HEART_RATE_MEASUREMENT;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -48,20 +51,20 @@ public class DeviceControlActivity extends AppCompatActivity {
 
     public static final String
             EXTRAS_DEVICE_NAME = "DEVICE_NAME",
-            EXTRAS_DEVICE_ADDRESS = "DEVICE_ADDRESS";
-    private final static String TAG = "Medvedev1 DCA " + DeviceControlActivity.class.getSimpleName();
-    private final String
-            LIST_NAME = "NAME",
-            LIST_UUID = "UUID";
+            EXTRAS_DEVICE_ADDRESS = "DEVICE_ADDRESS",
+            TAG = "Medvedev1 DCA " + DeviceControlActivity.class.getSimpleName();
+    // private final String
+    //         LIST_NAME = "NAME",
+    //         LIST_UUID = "UUID";
     private TextView
-            connectionStatus;
-    private TextView dataField;
-    private static TextView measurementsField;
-    private TextView writeTypeField;
+            connectionStatus,
+            measurementsField;
+    // private TextView dataField;
+    // private TextView writeTypeField;
     private String
             deviceName,
             deviceAddress;
-    private ExpandableListView gattServicesList;
+    // private ExpandableListView gattServicesList;
     private BluetoothLEService bluetoothLEService;
     private BluetoothGattCharacteristic notifyCharacteristic;
 
@@ -86,8 +89,8 @@ public class DeviceControlActivity extends AppCompatActivity {
             bluetoothLEService = null;
         }
     };
-    private ArrayList<ArrayList<BluetoothGattCharacteristic>> mGattCharacteristics = new ArrayList<>();
-    private boolean connected = false;
+    // private ArrayList<ArrayList<BluetoothGattCharacteristic>> mGattCharacteristics = new ArrayList<>();
+    // private boolean connected = false;
     /**
      * Обрабатывает различные события, инициированные Сервисом.
      * <p>ACTION_GATT_CONNECTED: подключен к серверу GATT.</p>
@@ -100,77 +103,78 @@ public class DeviceControlActivity extends AppCompatActivity {
         @Override
         public void onReceive(Context context, Intent intent) {
             final String action = intent.getAction();
-            if (action.equals(ACTION_GATT_CONNECTED)) {
-                connected = true;
-                updateConnectionState(R.string.connected);
-                invalidateOptionsMenu();
-            } else if (BluetoothLEService.ACTION_GATT_DISCONNECTED.equals(action)) {
-                connected = false;
-                updateConnectionState(R.string.disconnected);
-                invalidateOptionsMenu();
-                clearUI();
-            } else if (BluetoothLEService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
-                //Показать все поддерживаемые услуги и характеристики в пользовательском интерфейсе.
-                displayGattServices(bluetoothLEService.getSupportedGattServices());
-
-
-            } else if (BluetoothLEService.ACTION_DATA_AVAILABLE.equals(action)) {
-                displayData(intent.getStringExtra(BluetoothLEService.EXTRA_DATA));
-                if (deviceAddress.equals(SampleGattAttributes.MANOMETER_ADDRESS))
+            switch (action) {
+                case ACTION_GATT_CONNECTED:
+                    // connected = true;
+                    updateConnectionState(R.string.connected);
+                    invalidateOptionsMenu();
+                    break;
+                case ACTION_GATT_DISCONNECTED:
+                    // connected = false;
+                    updateConnectionState(R.string.disconnected);
+                    invalidateOptionsMenu();
+                    // clearUI();
+                    break;
+                // case ACTION_GATT_SERVICES_DISCOVERED:
+                //     //Показать все поддерживаемые услуги и характеристики в пользовательском интерфейсе.
+                //     displayGattServices(bluetoothLEService.getSupportedGattServices());
+                //     break;
+                case ACTION_DATA_AVAILABLE:
                     displayMeasurements(intent.getStringExtra(BluetoothLEService.MEASUREMENTS_DATA));
+                    break;
             }
 
             if (intent.getStringExtra("writeType") != null) {
-                writeTypeField.setText(intent.getStringExtra("writeType"));
+                // writeTypeField.setText(intent.getStringExtra("writeType"));
                 Log.d(TAG, "charprop " + intent.getStringExtra("writeType"));
             }
         }
     };
 
-    /**
-     * Если выбрана данная характеристика GATT, проверьте наличие поддерживаемых функций.
-     * В этом примере демонстрируются функции «Чтение» и «Уведомление».
-     * См. Http: d.android.comreferenceandroidbluetoothBluetoothGatt.html
-     * для получения полного списка поддерживаемых характерных функций.
-     *
-     * @param data
-     */
-    private final ExpandableListView.OnChildClickListener servicesListListener =
-            new ExpandableListView.OnChildClickListener() {
-                @Override
-                public boolean onChildClick(ExpandableListView parent, View v,
-                                            int groupPosition, int childPosition, long id) {
-
-                    if (mGattCharacteristics != null) {
-                        final BluetoothGattCharacteristic characteristic =
-                                mGattCharacteristics.get(groupPosition).get(childPosition);
-
-                        writeTypeField.setText(checkProperties(characteristic));
-
-                        final int charaProp = characteristic.getProperties();
-                        if ((charaProp & BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
-                            //Если есть активное уведомление о характеристике, сначала очистите его,
-                            // чтобы оно не обновляло поле данных в пользовательском интерфейсе.
-                            if (notifyCharacteristic != null) {
-                                // Не знаю зачем нужна ветка. Просто адаптировал под новую функцию [Danil]
-                                bluetoothLEService.setNotification(notifyCharacteristic, false);
-                                notifyCharacteristic = null;
-                            }
-                            bluetoothLEService.readCharacteristic(characteristic);
-                        }
-                        if ((charaProp & BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
-                            notifyCharacteristic = characteristic;
-                            if (characteristic.getUuid().equals(UUID_HEART_RATE_MEASUREMENT))
-                                bluetoothLEService.setNotification(notifyCharacteristic, true);
-                            else
-                                bluetoothLEService.setNotification(characteristic, true);
-                        }
-
-                        return true;
-                    }
-                    return false;
-                }
-            };
+    // /**
+    //  * Если выбрана данная характеристика GATT, проверьте наличие поддерживаемых функций.
+    //  * В этом примере демонстрируются функции «Чтение» и «Уведомление».
+    //  * См. Http: d.android.comreferenceandroidbluetoothBluetoothGatt.html
+    //  * для получения полного списка поддерживаемых характерных функций.
+    //  *
+    //  * @param data
+    //  */
+    // private final ExpandableListView.OnChildClickListener servicesListListener =
+    //         new ExpandableListView.OnChildClickListener() {
+    //             @Override
+    //             public boolean onChildClick(ExpandableListView parent, View v,
+    //                                         int groupPosition, int childPosition, long id) {
+//
+    //                 if (mGattCharacteristics != null) {
+    //                     final BluetoothGattCharacteristic characteristic =
+    //                             mGattCharacteristics.get(groupPosition).get(childPosition);
+//
+    //                     writeTypeField.setText(checkProperties(characteristic));
+//
+    //                     final int charaProp = characteristic.getProperties();
+    //                     if ((charaProp & BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
+    //                         //Если есть активное уведомление о характеристике, сначала очистите его,
+    //                         // чтобы оно не обновляло поле данных в пользовательском интерфейсе.
+    //                         if (notifyCharacteristic != null) {
+    //                             // Не знаю зачем нужна ветка. Просто адаптировал под новую функцию [Danil]
+    //                             bluetoothLEService.setNotification(notifyCharacteristic, false);
+    //                             notifyCharacteristic = null;
+    //                         }
+    //                         bluetoothLEService.readCharacteristic(characteristic);
+    //                     }
+    //                     if ((charaProp & BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
+    //                         notifyCharacteristic = characteristic;
+    //                         if (characteristic.getUuid().equals(UUID_HEART_RATE_MEASUREMENT))
+    //                             bluetoothLEService.setNotification(notifyCharacteristic, true);
+    //                         else
+    //                             bluetoothLEService.setNotification(characteristic, true);
+    //                     }
+//
+    //                     return true;
+    //                 }
+    //                 return false;
+    //             }
+    //         };
 
     /**
      * Функция создания фильтра канала широковещательных сообщений
@@ -180,9 +184,9 @@ public class DeviceControlActivity extends AppCompatActivity {
     private static IntentFilter makeGattUpdateIntentFilter() {
         final IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(BluetoothLEService.ACTION_GATT_CONNECTED);
-        intentFilter.addAction(BluetoothLEService.ACTION_GATT_DISCONNECTED);
-        intentFilter.addAction(BluetoothLEService.ACTION_GATT_SERVICES_DISCOVERED);
-        intentFilter.addAction(BluetoothLEService.ACTION_DATA_AVAILABLE);
+        intentFilter.addAction(ACTION_GATT_DISCONNECTED);
+        // intentFilter.addAction(ACTION_GATT_SERVICES_DISCOVERED);
+        intentFilter.addAction(ACTION_DATA_AVAILABLE);
         return intentFilter;
     }
 
@@ -197,11 +201,11 @@ public class DeviceControlActivity extends AppCompatActivity {
 
         // Устанавливает ссылки на пользовательский интерфейс.
         ((TextView) findViewById(R.id.device_address)).setText(deviceAddress);
-        gattServicesList = findViewById(R.id.gatt_services_list);
-        gattServicesList.setOnChildClickListener(servicesListListener);
+        // gattServicesList = findViewById(R.id.gatt_services_list);
+        // gattServicesList.setOnChildClickListener(servicesListListener);
         connectionStatus = findViewById(R.id.connection_state);
-        dataField = findViewById(R.id.data_value);
-        writeTypeField = findViewById(R.id.write_type);
+        // dataField = findViewById(R.id.data_value);
+        // writeTypeField = findViewById(R.id.write_type);
         measurementsField = findViewById(R.id.measurements);
 
         getSupportActionBar().setTitle(deviceName);
@@ -221,8 +225,7 @@ public class DeviceControlActivity extends AppCompatActivity {
         // registerReceiver - регистрация приемника BroadcastReceiver
         registerReceiver(gattUpdateReceiver, makeGattUpdateIntentFilter());
         if (bluetoothLEService != null) {
-            final boolean result = bluetoothLEService.connect(deviceAddress);
-            Log.d(TAG, "Connect request result = " + result);
+            Log.d(TAG, "Connect request result = " + bluetoothLEService.connect(deviceAddress));
         }
     }
 
@@ -242,41 +245,41 @@ public class DeviceControlActivity extends AppCompatActivity {
         unbindService(serviceConnection);
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.gatt_services, menu);
-        if (connected) {
-            menu.findItem(R.id.menu_connect).setVisible(false);
-            menu.findItem(R.id.menu_disconnect).setVisible(true);
-        } else {
-            menu.findItem(R.id.menu_connect).setVisible(true);
-            menu.findItem(R.id.menu_disconnect).setVisible(false);
-        }
-        return true;
-    }
+    // @Override
+    // public boolean onCreateOptionsMenu(Menu menu) {
+    //     getMenuInflater().inflate(R.menu.gatt_services, menu);
+    //     if (connected) {
+    //         menu.findItem(R.id.menu_connect).setVisible(false);
+    //         menu.findItem(R.id.menu_disconnect).setVisible(true);
+    //     } else {
+    //         menu.findItem(R.id.menu_connect).setVisible(true);
+    //         menu.findItem(R.id.menu_disconnect).setVisible(false);
+    //     }
+    //     return true;
+    // }
+//
+    // @Override
+    // public boolean onOptionsItemSelected(MenuItem item) {
+    //     switch (item.getItemId()) {
+    //         case R.id.menu_connect:
+    //             bluetoothLEService.connect(deviceAddress);
+    //             return true;
+    //         case R.id.menu_disconnect:
+    //             bluetoothLEService.disconnect();
+    //             return true;
+    //         case android.R.id.home:
+    //             onBackPressed();
+    //             return true;
+    //     }
+    //     return super.onOptionsItemSelected(item);
+    // }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.menu_connect:
-                bluetoothLEService.connect(deviceAddress);
-                return true;
-            case R.id.menu_disconnect:
-                bluetoothLEService.disconnect();
-                return true;
-            case android.R.id.home:
-                onBackPressed();
-                return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
+    // private void displayData(String data) {
+    //     // if (data != null) dataField.setText(data);
+    //     Log.d("DAtaCharacteristic", deviceName + ": " + data);
+    // }
 
-    private void displayData(String data) {
-        if (data != null) dataField.setText(data);
-        Log.d("DAtaCharacteristic", deviceName + ": " + data);
-    }
-
-    public static void displayMeasurements(String measurements) {
+    public void displayMeasurements(String measurements) {
         if (measurements != null) {
 
             Handler displayHandler = new Handler(Looper.getMainLooper()) {
@@ -296,127 +299,127 @@ public class DeviceControlActivity extends AppCompatActivity {
         }
     }
 
-    private void displayGattServices(List<BluetoothGattService> bluetoothGattServices) {
-        if (bluetoothGattServices == null) return;
-        String uuid;
-        String unknownServiceString = getResources().getString(R.string.unknown_service);
-        String unknownCharacteristicString = getResources().getString(R.string.unknown_characteristic);
+    // private void displayGattServices(List<BluetoothGattService> bluetoothGattServices) {
+    //     if (bluetoothGattServices == null) return;
+    //     String uuid;
+    //     String unknownServiceString = getResources().getString(R.string.unknown_service);
+    //     String unknownCharacteristicString = getResources().getString(R.string.unknown_characteristic);
+//
+    //     ArrayList<HashMap<String, String>> gattServiceData = new ArrayList<HashMap<String, String>>();
+//
+    //     ArrayList<ArrayList<HashMap<String, String>>> gattCharacteristicData =
+    //             new ArrayList<>();
+//
+    //     // mGattCharacteristics = new ArrayList<>();
+//
+    //     //Переборка доступных служб GATT.
+    //     for (BluetoothGattService gattService : bluetoothGattServices) {
+    //         HashMap<String, String> currentServiceData = new HashMap<>();
+    //         uuid = gattService.getUuid().toString();
+    //         currentServiceData.put(LIST_NAME, SampleGattAttributes.lookup(uuid, unknownServiceString));
+    //         currentServiceData.put(LIST_UUID, uuid);
+    //         gattServiceData.add(currentServiceData);
+//
+    //         ArrayList<HashMap<String, String>> gattCharacteristicGroupData = new ArrayList<>();
+    //         List<BluetoothGattCharacteristic> gattCharacteristics = gattService.getCharacteristics();
+    //         ArrayList<BluetoothGattCharacteristic> characteristics = new ArrayList<>();
+//
+    //         //Цикл по доступным характеристикам.
+    //         for (BluetoothGattCharacteristic gattCharacteristic : gattCharacteristics) {
+    //             characteristics.add(gattCharacteristic);
+    //             HashMap<String, String> currentCharaData = new HashMap<>();
+    //             uuid = gattCharacteristic.getUuid().toString();
+    //             currentCharaData.put(LIST_NAME, SampleGattAttributes.lookup(uuid, unknownCharacteristicString));
+    //             currentCharaData.put(LIST_UUID, uuid);
+    //             gattCharacteristicGroupData.add(currentCharaData);
+    //         }
+    //         // mGattCharacteristics.add(characteristics);
+    //         gattCharacteristicData.add(gattCharacteristicGroupData);
+    //     }
+//
+    //     SimpleExpandableListAdapter gattServiceAdapter = new SimpleExpandableListAdapter(
+    //             this,
+    //             gattServiceData,
+    //             android.R.layout.simple_expandable_list_item_2,
+    //             new String[]{LIST_NAME, LIST_UUID},
+    //             new int[]{android.R.id.text1, android.R.id.text2},
+    //             gattCharacteristicData,
+    //             android.R.layout.simple_expandable_list_item_2,
+    //             new String[]{LIST_NAME, LIST_UUID},
+    //             new int[]{android.R.id.text1, android.R.id.text2}
+    //     );
+    //     gattServicesList.setAdapter(gattServiceAdapter);
+    // }
 
-        ArrayList<HashMap<String, String>> gattServiceData = new ArrayList<HashMap<String, String>>();
-
-        ArrayList<ArrayList<HashMap<String, String>>> gattCharacteristicData =
-                new ArrayList<>();
-
-        mGattCharacteristics = new ArrayList<>();
-
-        //Переборка доступных служб GATT.
-        for (BluetoothGattService gattService : bluetoothGattServices) {
-            HashMap<String, String> currentServiceData = new HashMap<>();
-            uuid = gattService.getUuid().toString();
-            currentServiceData.put(LIST_NAME, SampleGattAttributes.lookup(uuid, unknownServiceString));
-            currentServiceData.put(LIST_UUID, uuid);
-            gattServiceData.add(currentServiceData);
-
-            ArrayList<HashMap<String, String>> gattCharacteristicGroupData = new ArrayList<>();
-            List<BluetoothGattCharacteristic> gattCharacteristics = gattService.getCharacteristics();
-            ArrayList<BluetoothGattCharacteristic> characteristics = new ArrayList<>();
-
-            //Цикл по доступным характеристикам.
-            for (BluetoothGattCharacteristic gattCharacteristic : gattCharacteristics) {
-                characteristics.add(gattCharacteristic);
-                HashMap<String, String> currentCharaData = new HashMap<>();
-                uuid = gattCharacteristic.getUuid().toString();
-                currentCharaData.put(LIST_NAME, SampleGattAttributes.lookup(uuid, unknownCharacteristicString));
-                currentCharaData.put(LIST_UUID, uuid);
-                gattCharacteristicGroupData.add(currentCharaData);
-            }
-            mGattCharacteristics.add(characteristics);
-            gattCharacteristicData.add(gattCharacteristicGroupData);
-        }
-
-        SimpleExpandableListAdapter gattServiceAdapter = new SimpleExpandableListAdapter(
-                this,
-                gattServiceData,
-                android.R.layout.simple_expandable_list_item_2,
-                new String[]{LIST_NAME, LIST_UUID},
-                new int[]{android.R.id.text1, android.R.id.text2},
-                gattCharacteristicData,
-                android.R.layout.simple_expandable_list_item_2,
-                new String[]{LIST_NAME, LIST_UUID},
-                new int[]{android.R.id.text1, android.R.id.text2}
-        );
-        gattServicesList.setAdapter(gattServiceAdapter);
-    }
-
-    private void clearUI() {
-        gattServicesList.setAdapter((SimpleExpandableListAdapter) null);
-        dataField.setText(R.string.no_data);
-    }
+    // private void clearUI() {
+    //     gattServicesList.setAdapter((SimpleExpandableListAdapter) null);
+    //     dataField.setText(R.string.no_data);
+    // }
 
     private void updateConnectionState(final int resourseId) {
         runOnUiThread(() -> connectionStatus.setText(resourseId));
     }
 
-    public String checkProperties(BluetoothGattCharacteristic characteristic) {
-
-        String characteristicWithProperties = characteristic.getUuid().toString() + " | ";
-
-        if (isReadable(characteristic)) characteristicWithProperties += "read ";
-        if (isWritable(characteristic)) characteristicWithProperties += "write ";
-        if (isWritableWithoutResponse(characteristic)) characteristicWithProperties += "WWR ";
-        if (isBroadcastable(characteristic)) characteristicWithProperties += "broadcast ";
-        if (isWithExtendedProperties(characteristic)) characteristicWithProperties += "EP ";
-        if (isIndication(characteristic)) characteristicWithProperties += "indication ";
-        if (isNotify(characteristic)) characteristicWithProperties += "notify ";
-        if (isSignedWritable(characteristic)) characteristicWithProperties += "SW ";
-
-        Log.d("charprop", characteristicWithProperties);
-
-        return characteristicWithProperties.substring(characteristicWithProperties.indexOf("|") + 2);
-    }
+    // public String checkProperties(BluetoothGattCharacteristic characteristic) {
+//
+    //     String characteristicWithProperties = characteristic.getUuid().toString() + " | ";
+//
+    //     if (isReadable(characteristic)) characteristicWithProperties += "read ";
+    //     if (isWritable(characteristic)) characteristicWithProperties += "write ";
+    //     if (isWritableWithoutResponse(characteristic)) characteristicWithProperties += "WWR ";
+    //     if (isBroadcastable(characteristic)) characteristicWithProperties += "broadcast ";
+    //     if (isWithExtendedProperties(characteristic)) characteristicWithProperties += "EP ";
+    //     if (isIndication(characteristic)) characteristicWithProperties += "indication ";
+    //     if (isNotify(characteristic)) characteristicWithProperties += "notify ";
+    //     if (isSignedWritable(characteristic)) characteristicWithProperties += "SW ";
+//
+    //     Log.d("charprop", characteristicWithProperties);
+//
+    //     return characteristicWithProperties.substring(characteristicWithProperties.indexOf("|") + 2);
+    // }
 
 
     ///// Вспомогательные функции определения свойств характеристик
 
-    /**
-     * Функция возвращает true, если характеристику возможно прочесть, false - если нет
-     */
-    public boolean isReadable(BluetoothGattCharacteristic characteristic) {
-        return containsProperty(PROPERTY_READ, characteristic);
-    }
-
-    public boolean isWritable(BluetoothGattCharacteristic characteristic) {
-        return containsProperty(PROPERTY_WRITE, characteristic);
-    }
-
-    public boolean isBroadcastable(BluetoothGattCharacteristic characteristic) {
-        return containsProperty(PROPERTY_BROADCAST, characteristic);
-    }
-
-    public boolean isSignedWritable(BluetoothGattCharacteristic characteristic) {
-        return containsProperty(PROPERTY_SIGNED_WRITE, characteristic);
-    }
-
-    public boolean isWithExtendedProperties(BluetoothGattCharacteristic characteristic) {
-        return containsProperty(PROPERTY_EXTENDED_PROPS, characteristic);
-    }
-
-    public static boolean isNotify(BluetoothGattCharacteristic characteristic) {
-        return containsProperty(PROPERTY_NOTIFY, characteristic);
-    }
-
-    public static boolean isIndication(BluetoothGattCharacteristic characteristic) {
-        return containsProperty(PROPERTY_INDICATE, characteristic);
-    }
-
-    public boolean isWritableWithoutResponse(BluetoothGattCharacteristic characteristic) {
-        return containsProperty(WRITE_TYPE_NO_RESPONSE, characteristic);
-    }
-
-    /**
-     * Функция возвращает true, если характеристика обладает проверяемым св-вом, false - если нет
-     */
-    private static boolean containsProperty(int property, BluetoothGattCharacteristic characteristic) {
-        return (characteristic.getProperties() & property) != 0;
-    }
+    // /**
+    //  * Функция возвращает true, если характеристику возможно прочесть, false - если нет
+    //  */
+    // public boolean isReadable(BluetoothGattCharacteristic characteristic) {
+    //     return containsProperty(PROPERTY_READ, characteristic);
+    // }
+//
+    // public boolean isWritable(BluetoothGattCharacteristic characteristic) {
+    //     return containsProperty(PROPERTY_WRITE, characteristic);
+    // }
+//
+    // public boolean isBroadcastable(BluetoothGattCharacteristic characteristic) {
+    //     return containsProperty(PROPERTY_BROADCAST, characteristic);
+    // }
+//
+    // public boolean isSignedWritable(BluetoothGattCharacteristic characteristic) {
+    //     return containsProperty(PROPERTY_SIGNED_WRITE, characteristic);
+    // }
+//
+    // public boolean isWithExtendedProperties(BluetoothGattCharacteristic characteristic) {
+    //     return containsProperty(PROPERTY_EXTENDED_PROPS, characteristic);
+    // }
+//
+    // public static boolean isNotify(BluetoothGattCharacteristic characteristic) {
+    //     return containsProperty(PROPERTY_NOTIFY, characteristic);
+    // }
+//
+    // public static boolean isIndication(BluetoothGattCharacteristic characteristic) {
+    //     return containsProperty(PROPERTY_INDICATE, characteristic);
+    // }
+//
+    // public boolean isWritableWithoutResponse(BluetoothGattCharacteristic characteristic) {
+    //     return containsProperty(WRITE_TYPE_NO_RESPONSE, characteristic);
+    // }
+//
+    // /**
+    //  * Функция возвращает true, если характеристика обладает проверяемым св-вом, false - если нет
+    //  */
+    // private static boolean containsProperty(int property, BluetoothGattCharacteristic characteristic) {
+    //     return (characteristic.getProperties() & property) != 0;
+    // }
 }
