@@ -1,213 +1,188 @@
-package com.example.bluetooth_le_gatt_sborka;
+package com.example.bluetooth_le_gatt_sborka
 
-import android.app.Service;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCallback;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattDescriptor;
-import android.bluetooth.BluetoothGattService;
-import android.bluetooth.BluetoothManager;
-import android.bluetooth.BluetoothProfile;
-import android.content.Context;
-import android.content.Intent;
-import android.os.Binder;
-import android.os.IBinder;
-import android.os.Message;
-import android.util.Log;
-
-import androidx.core.view.InputDeviceCompat;
-
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.UUID;
-
-
+import android.app.Service
+import android.bluetooth.*
+import android.content.Intent
+import android.os.Binder
+import android.os.IBinder
+import android.os.Message
+import android.util.Log
+import androidx.core.view.InputDeviceCompat
+import java.util.*
 
 /**
  * Служба для управления подключением и передачей данных с сервером GATT, размещенным на данном устройстве Bluetooth LE.
  */
-public class BluetoothLEService extends Service {
+class BluetoothLEService : Service() {
+    private val binder: IBinder = LocalBinder()
+    private var bluetoothManager: BluetoothManager? = null
+    private var bluetoothAdapter: BluetoothAdapter? = null
+    private lateinit var bluetoothDeviceAddress: String
 
-    public final static String
-            ACTION_GATT_CONNECTED = "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_CONNECTED",
-            ACTION_GATT_DISCONNECTED = "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_DISCONNECTED",
-            ACTION_GATT_SERVICES_DISCOVERED = "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_SERVICES_DISCOVERED",
-            ACTION_DATA_AVAILABLE = "com.example.bluetooth_le_gatt_sborka.ACTION_DATA_AVAILABLE",
-            MEASUREMENTS_DATA = "com.example.bluetooth_le_gatt_sborka.MEASUREMENTS_DATA",
-            EXTRA_DATA = "com.example.bluetooth_le_gatt_sborka.ACTION_DATA";
-    /**
-     * UUID для прибора сердечного ритма
-     */
-    public final static UUID UUID_HEART_RATE_MEASUREMENT = UUID.fromString(SampleGattAttributes.HEART_RATE_MEASUREMENT);
-    public final static UUID BLOOD_PRESSURE_MEASUREMENT = UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_MEASUREMENT);
-    public final static UUID FFF2_CHARACTERISTIC = UUID.fromString(SampleGattAttributes.FFF2_CHARACTERISTIC);
-    public final static UUID FFF1_CHARACTERISTIC = UUID.fromString(SampleGattAttributes.FFF1_CHARACTERISTIC);
-    public final static UUID FFF0_SERVICE = UUID.fromString(SampleGattAttributes.FFF0_SERVICE);
-    public static String codeRepeatCheck = "";
-    private final static String TAG = "Medvedev1 BLES";
-    private final IBinder binder = new LocalBinder();
-    public static BluetoothGatt bluetoothGatt;
-    private BluetoothManager bluetoothManager;
-    private BluetoothAdapter bluetoothAdapter;
-    private String bluetoothDeviceAddress;
     //Реализация методов обратного вызова для событий GATT,
     //о которых заботится приложение. Например, изменение подключения и обнаружение служб.
-    public final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
-        @Override
+    private val gattCallback: BluetoothGattCallback = object : BluetoothGattCallback() {
         //при изменении состояния подключения
-        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-            String intentAction;
+        override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+            val intentAction: String
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                intentAction = ACTION_GATT_CONNECTED;
-                broadcastUpdate(intentAction);
-                Log.d(TAG, "Connected to GATT server");
+                intentAction = ACTION_GATT_CONNECTED
+                broadcastUpdate(intentAction)
+                Log.d(TAG, "Connected to GATT server")
                 //Попытки обнаружить службы после успешного подключения.
                 //discoverServices - Обнаруживает сервисы, предлагаемые удаленным устройством,
                 // а также их характеристики и дескрипторы
-                Log.d(TAG, "Попытка запустить обнаружение сервисов: " + bluetoothGatt.discoverServices());
+                Log.d(
+                    TAG,
+                    "Попытка запустить обнаружение сервисов: " + bluetoothGatt!!.discoverServices()
+                )
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                intentAction = ACTION_GATT_DISCONNECTED;
-                Log.d(TAG, "Disconnected from GATT server");
-                codeRepeatCheck = "";
-                broadcastUpdate(intentAction);
-                connect(bluetoothDeviceAddress);
+                intentAction = ACTION_GATT_DISCONNECTED
+                Log.d(TAG, "Disconnected from GATT server")
+                codeRepeatCheck = ""
+                broadcastUpdate(intentAction)
+                connect(bluetoothDeviceAddress)
             }
         }
 
-        @Override
-        public void onServicesDiscovered(BluetoothGatt bluetoothGatt, int status) {
+        override fun onServicesDiscovered(bluetoothGatt: BluetoothGatt, status: Int) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-
-                switch (bluetoothGatt.getDevice().getAddress()) {
-                    case SampleGattAttributes.TESTO_SMART_PYROMETER_ADDRESS: // testo smart
-                        connectionWithTestoSmartPyrometer(bluetoothGatt);
-                        break;
-
-                    case SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS:  // microlife nc 150bt
+                when (bluetoothGatt.device.address) {
+                    SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS -> {
                         //заметка себе: вытащить логику в отдельный метод
-                        BluetoothGattCharacteristic microlifeCharacteristic =
-                                bluetoothGatt.getService(FFF0_SERVICE).getCharacteristic(FFF1_CHARACTERISTIC);
-
+                        val microlifeCharacteristic =
+                            bluetoothGatt.getService(FFF0_SERVICE).getCharacteristic(
+                                FFF1_CHARACTERISTIC
+                            )
                         if (setNotification(microlifeCharacteristic, true)) {
-                            Log.d(TAG, "Notifications/indications FFF1 successfully enabled!");
-                        } else
-                            Log.d(TAG, "Microlife Notifications/indications FFF1 enabling error!");
-
-                        break;
-                    case SampleGattAttributes.MANOMETER_ADDRESS:  // manometer AND
-                        if (setIndicationManometer(bluetoothGatt, true))
-                            Log.d(TAG, "indication enable");
-                        else
-                            Log.d(TAG, "indication NOT enable");
-                        connectionWithManometer(bluetoothGatt);
-                        break;
+                            Log.d(TAG, "Notifications/indications FFF1 successfully enabled!")
+                        } else Log.d(
+                            TAG,
+                            "Microlife Notifications/indications FFF1 enabling error!"
+                        )
+                    }
+                    SampleGattAttributes.MANOMETER_ADDRESS -> {
+                        if (setIndicationManometer(bluetoothGatt, true)) Log.d(
+                            TAG,
+                            "indication enable"
+                        ) else Log.d(
+                            TAG, "indication NOT enable"
+                        )
+                        connectionWithManometer(bluetoothGatt)
+                    }
                 }
-
-                broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
+                broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED)
             } else {
-                Log.d(TAG, "об обнаруженных услугах получено: " + status);
+                Log.d(TAG, "об обнаруженных услугах получено: $status")
             }
         }
 
         // обратный вызов докладывающий об рузельтате чтения зарактеристик ble
-        @Override
-        public void onCharacteristicRead(BluetoothGatt bluetoothGatt,
-                                         BluetoothGattCharacteristic characteristic, int status) {
+        override fun onCharacteristicRead(
+            bluetoothGatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic, status: Int
+        ) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                broadcastUpdate(characteristic);
+                broadcastUpdate(characteristic)
             }
         }
 
-        @Override
-        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
-            Log.d(TAG, "onCharacteristicWrite == BluetoothGatt：" + bluetoothGatt + " BluetoothGattCharacteristic：" + characteristic + " status：" + status);
-            if (status == BluetoothGatt.GATT_SUCCESS)
-                broadcastUpdate(characteristic);
+        override fun onCharacteristicWrite(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            status: Int
+        ) {
+            Log.d(
+                TAG,
+                "onCharacteristicWrite == BluetoothGatt：$bluetoothGatt BluetoothGattCharacteristic：$characteristic status：$status"
+            )
+            if (status == BluetoothGatt.GATT_SUCCESS) broadcastUpdate(characteristic)
         }
 
         // обратный вызов об изменении характеристик ble
-        @Override
-        public void onCharacteristicChanged(BluetoothGatt bluetoothGatt, BluetoothGattCharacteristic characteristic) {
-            broadcastUpdate(characteristic);
+        override fun onCharacteristicChanged(
+            bluetoothGatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic
+        ) {
+            broadcastUpdate(characteristic)
         }
-    };
-
-    private void broadcastUpdate(final String action) {
-        final Intent intent = new Intent(action);
-        sendBroadcast(intent);
     }
 
-    private void broadcastUpdate(final BluetoothGattCharacteristic characteristic) {
-        final Intent intent = new Intent(BluetoothLEService.ACTION_DATA_AVAILABLE);
+    private fun broadcastUpdate(action: String) {
+        val intent = Intent(action)
+        sendBroadcast(intent)
+    }
+
+    private fun broadcastUpdate(characteristic: BluetoothGattCharacteristic) {
+        val intent = Intent(ACTION_DATA_AVAILABLE)
 
         //Это особая обработка профиля измерения частоты пульса.
         // Анализ данных выполняется в соответствии со спецификациями профиля:
         // http: developer.bluetooth.orggattcharacteristicsPagesCharacteristicViewer.aspx? U = org.bluetooth.characteristic.heart_rate_measurement.xml
-        if (UUID_HEART_RATE_MEASUREMENT.equals(characteristic.getUuid())) {
-            int flag = characteristic.getProperties();
-            int format;
-            if ((flag & 0x01) != 0) {
-                format = BluetoothGattCharacteristic.FORMAT_UINT16;
-                Log.d(TAG, "Heart rate format UINT16.");
+        if (UUID_HEART_RATE_MEASUREMENT == characteristic.uuid) {
+            val flag = characteristic.properties
+            val format: Int
+            if (flag and 0x01 != 0) {
+                format = BluetoothGattCharacteristic.FORMAT_UINT16
+                Log.d(TAG, "Heart rate format UINT16.")
             } else {
-                format = BluetoothGattCharacteristic.FORMAT_UINT8;
-                Log.d(TAG, "Heart rate format UINT8.");
+                format = BluetoothGattCharacteristic.FORMAT_UINT8
+                Log.d(TAG, "Heart rate format UINT8.")
             }
-            final int heartRate = characteristic.getIntValue(format, 1);
-            Log.d(TAG, "properties from Heart Rate: " + characteristic + " | " + String.format("Received heartrate: %d", heartRate));
-            intent.putExtra(EXTRA_DATA, String.valueOf(heartRate));
-
+            val heartRate = characteristic.getIntValue(format, 1)
+            Log.d(
+                TAG,
+                "properties from Heart Rate: $characteristic | Received heartrate: $heartRate"
+            )
+            intent.putExtra(EXTRA_DATA, heartRate.toString())
         } else {
-            final byte[] data = characteristic.getValue();
-            if (data != null && data.length > 0) {
+            val data = characteristic.value
+            if (data != null && data.isNotEmpty()) {
                 //Для всех остальных профилей записывает данные в формате HEX
-                Log.d(TAG, "oncharacteristicChanged | " + characteristic.getUuid().toString() + " | " + Arrays.toString(data));
-
-                if (BLOOD_PRESSURE_MEASUREMENT.equals(characteristic.getUuid())) { // manometer
-                    String measurementsFromByte;
-                    if (data.length >= 14) measurementsFromByte = "SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[14];
-                    else measurementsFromByte = "SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[7];
-                    intent.putExtra(MEASUREMENTS_DATA, measurementsFromByte);
-
-                } else if (SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS.equals(bluetoothGatt.getDevice().getAddress())) {
-                    Log.d(TAG, "characteristic changed on Microlife device");
-                    ThermometerMeasureData thermometerMeasureData = new ThermometerMeasureData(this);
-
-                    Runnable handleValueThread = () -> {
-                        Message message = Message.obtain();
-                        message.obj = characteristic.getValue();
-                        thermometerMeasureData.thermoHandler.handleMessage(message);
-                    };
-
-                    Thread handleValueFromCharacteristic = new Thread(handleValueThread);
-                    handleValueFromCharacteristic.start();
-
-                } else {
-                    Log.d(TAG, "подключаемое устройство не поддерживается данным приложением");
+                Log.d(
+                    TAG,
+                    "oncharacteristicChanged | $characteristic.uuid.toString() | ${Arrays.toString(data)}"
+                )
+                when {
+                    BLOOD_PRESSURE_MEASUREMENT == characteristic.uuid -> { // manometer
+                        val measurementsFromByte: String = if (data.size >= 14) "SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[14] else "SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[7]
+                        intent.putExtra(MEASUREMENTS_DATA, measurementsFromByte)
+                    }
+                    SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS == bluetoothGatt!!.device.address -> {
+                        Log.d(TAG, "characteristic changed on Microlife device")
+                        val thermometerMeasureData = ThermometerMeasureData(this)
+                        val handleValueThread = Runnable {
+                            val message = Message.obtain()
+                            message.obj = characteristic.value
+                            thermometerMeasureData.thermoHandler.handleMessage(message)
+                        }
+                        val handleValueFromCharacteristic = Thread(handleValueThread)
+                        handleValueFromCharacteristic.start()
+                    }
+                    else -> {
+                        Log.d(TAG, "подключаемое устройство не поддерживается данным приложением")
+                    }
                 }
             }
-            sendBroadcast(intent);
+            sendBroadcast(intent)
         }
     }
 
-    public boolean initialize() {
+    fun initialize(): Boolean {
         // Для уровня API 18 и выше получите ссылку на BluetoothAdapter
         if (bluetoothManager == null) {
-            bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+            bluetoothManager = getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
             if (bluetoothManager == null) {
-                Log.d(TAG, "Невозможно инициализировать BluetoothManager");
-                return false;
+                Log.d(TAG, "Невозможно инициализировать BluetoothManager")
+                return false
             }
         }
-
-        bluetoothAdapter = bluetoothManager.getAdapter();
+        bluetoothAdapter = bluetoothManager!!.adapter
         if (bluetoothAdapter == null) {
-            Log.d(TAG, "Невозможно получить адаптер Bluetooth");
-            return false;
+            Log.d(TAG, "Невозможно получить адаптер Bluetooth")
+            return false
         }
-        return true;
+        return true
     }
 
     /**
@@ -216,191 +191,191 @@ public class BluetoothLEService extends Service {
      * @param deviceAddress Адрес устройства назначения.
      * @return Возвращает истину, если соединение инициировано успешно.
      * Результат подключения передается асинхроннос помощью обратного
-     * вызова {@code BluetoothGattCallback#onConnectionStateChange (android.bluetooth.BluetoothGatt, int, int)}.
+     * вызова `BluetoothGattCallback#onConnectionStateChange (android.bluetooth.BluetoothGatt, int, int)`.
      */
-    public boolean connect(final String deviceAddress) {
-        if (bluetoothAdapter == null || deviceAddress == null) {
-            Log.d(TAG, "BluetoothAdapter не инициализирован или адрес не указан");
-            return false;
+    fun connect(deviceAddress: String): Boolean {
+        bluetoothDeviceAddress = deviceAddress
+        if (bluetoothAdapter == null) {
+            Log.d(TAG, "BluetoothAdapter не инициализирован или адрес не указан")
+            return false
         }
 
         //Ранее подключенное устройство. Попытка переподключиться.
-        if (deviceAddress.equals(bluetoothDeviceAddress)
-                && bluetoothGatt != null) {
-            Log.d(TAG, "Попытка использовать существующий mBluetoothGatt для подключения.");
-            return bluetoothGatt.connect();
+        if (deviceAddress == bluetoothDeviceAddress && bluetoothGatt != null) {
+            Log.d(TAG, "Попытка использовать существующий mBluetoothGatt для подключения.")
+            return bluetoothGatt!!.connect()
         }
-
-        final BluetoothDevice bluetoothDevice = bluetoothAdapter.getRemoteDevice(deviceAddress);
+        val bluetoothDevice = bluetoothAdapter!!.getRemoteDevice(deviceAddress)
         if (bluetoothDevice == null) {
-            Log.d(TAG, "устройство не найдено. Невозможно подключиться");
-            return false;
+            Log.d(TAG, "устройство не найдено. Невозможно подключиться")
+            return false
         }
 
         // Мы хотим напрямую подключиться к устройству,
         // поэтому устанавливаем для параметра autoConnect значение false.
-        bluetoothGatt = bluetoothDevice.connectGatt(this, false, gattCallback);
+        bluetoothGatt = bluetoothDevice.connectGatt(this, false, gattCallback)
         //Log.d(TAG, "Попытка создать новое соединение");
-        bluetoothDeviceAddress = deviceAddress;
-
-        return true;
+        return true
     }
 
-    @Override
-    public IBinder onBind(Intent intent) {
-        return binder;
+    override fun onBind(intent: Intent): IBinder {
+        return binder
     }
 
-    @Override
-    public boolean onUnbind(Intent intent) {
+    override fun onUnbind(intent: Intent): Boolean {
         //После использования данного устройства вы должны убедиться, что вызывается BluetoothGatt.close (),
         // чтобы ресурсы были очищены должным образом.
         // В этом конкретном примере close () вызывается, когда пользовательский интерфейс отключается от службы.
-        close();
-        return super.onUnbind(intent);
+        close()
+        return super.onUnbind(intent)
     }
 
     /**
      * После использования данного устройства BLE приложение должно вызвать этот метод,
      * чтобы обеспечить правильное высвобождение ресурсов.
      */
-    private void close() {
+    private fun close() {
         if (bluetoothGatt == null) {
-            return;
+            return
         }
-        bluetoothGatt.close();
-        bluetoothGatt = null;
+        bluetoothGatt!!.close()
+        bluetoothGatt = null
     }
 
-    public class LocalBinder extends Binder {
-        public BluetoothLEService getService() {
-            return BluetoothLEService.this;
-        }
+    inner class LocalBinder : Binder() {
+        val service: BluetoothLEService
+            get() = this@BluetoothLEService
     }
 
     /**
      * Функция попытки подключения к уст-ву [testo 805i или ???].
-     * <p>Записывает значение "01-00" в дескриптор 00002902-0000-1000-8000-00805f9b34fb</p>
+     *
+     * Записывает значение "01-00" в дескриптор 00002902-0000-1000-8000-00805f9b34fb
      */
-    public boolean setNotification(BluetoothGattCharacteristic characteristic, boolean enabled) {
-
+    fun setNotification(characteristic: BluetoothGattCharacteristic?, enabled: Boolean): Boolean {
         if (bluetoothAdapter == null || bluetoothGatt == null) {
-            Log.d(TAG, "BluetoothAdapter не инициализирован");
-            return false;
+            Log.d(TAG, "BluetoothAdapter не инициализирован")
+            return false
         }
         if (characteristic == null) {
-            Log.e(TAG, "Can't get characteristic!");
-            return false;
+            Log.e(TAG, "Can't get characteristic!")
+            return false
         }
-
-        boolean isSuccess = bluetoothGatt.setCharacteristicNotification(characteristic, enabled);
-        BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString(SampleGattAttributes.CLIENT_CHARACTERISTIC_CONFIG));
+        val isSuccess = bluetoothGatt!!.setCharacteristicNotification(characteristic, enabled)
+        val descriptor =
+            characteristic.getDescriptor(UUID.fromString(SampleGattAttributes.CLIENT_CHARACTERISTIC_CONFIG))
         if (descriptor != null) {
             if (enabled) {
-                descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                descriptor.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
             } else {
-                descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+                descriptor.value = BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
             }
         }
-        bluetoothGatt.writeDescriptor(descriptor);
-        return isSuccess;
+        bluetoothGatt!!.writeDescriptor(descriptor)
+        return isSuccess
     }
 
-    private void connectionWithManometer(BluetoothGatt bluetoothGatt) {
-        BluetoothGattCharacteristic dateAndTimeCharacteristic =
-                bluetoothGatt.getService(UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_SERVICE))
-                        .getCharacteristic(UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_MEASUREMENT));
-        bluetoothGatt.writeCharacteristic(setDateAndTimeValueToCharacteristic(dateAndTimeCharacteristic, Calendar.getInstance()));
+    private fun connectionWithManometer(bluetoothGatt: BluetoothGatt) {
+        val dateAndTimeCharacteristic =
+            bluetoothGatt.getService(UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_SERVICE))
+                .getCharacteristic(UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_MEASUREMENT))
+        bluetoothGatt.writeCharacteristic(
+            setDateAndTimeValueToCharacteristic(
+                dateAndTimeCharacteristic,
+                Calendar.getInstance()
+            )
+        )
     }
 
-    public boolean setIndicationManometer(BluetoothGatt bluetoothGatt, boolean enable) {
-        boolean checkingForIndication = false;
+    fun setIndicationManometer(bluetoothGatt: BluetoothGatt?, enable: Boolean): Boolean {
+        var checkingForIndication = false
         if (bluetoothGatt != null) {
-            BluetoothGattService service = bluetoothGatt.getService(UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_SERVICE));
+            val service =
+                bluetoothGatt.getService(UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_SERVICE))
             if (service != null) {
-                BluetoothGattCharacteristic characteristic = service.getCharacteristic(UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_MEASUREMENT));
+                val characteristic =
+                    service.getCharacteristic(UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_MEASUREMENT))
                 if (characteristic != null) {
-                    checkingForIndication = setIndication(characteristic, enable);
+                    checkingForIndication = setIndication(characteristic, enable)
                 } else {
-                    Log.d(TAG, "Characteristic NULL");
+                    Log.d(TAG, "Characteristic NULL")
                 }
             } else {
-                Log.d(TAG, "Service NULL");
+                Log.d(TAG, "Service NULL")
             }
         }
-        return checkingForIndication;
+        return checkingForIndication
     }
 
-    public boolean setIndication(BluetoothGattCharacteristic characteristic, boolean enable) {
-        boolean isSuccess = bluetoothGatt.setCharacteristicNotification(characteristic, enable);
-        BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString(SampleGattAttributes.CLIENT_CHARACTERISTIC_CONFIG));
+    private fun setIndication(characteristic: BluetoothGattCharacteristic, enable: Boolean): Boolean {
+        val isSuccess = bluetoothGatt!!.setCharacteristicNotification(characteristic, enable)
+        val descriptor =
+            characteristic.getDescriptor(UUID.fromString(SampleGattAttributes.CLIENT_CHARACTERISTIC_CONFIG))
         if (enable) {
-            descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
+            descriptor.value = BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
         } else {
-            descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+            descriptor.value = BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
         }
-        bluetoothGatt.writeDescriptor(descriptor);
-        return isSuccess;
+        bluetoothGatt!!.writeDescriptor(descriptor)
+        return isSuccess
     }
 
-    public static BluetoothGattCharacteristic setDateAndTimeValueToCharacteristic(BluetoothGattCharacteristic characteristic, Calendar calendar) {
-        int year = calendar.get(1); //год
+    companion object {
+        const val ACTION_GATT_CONNECTED =
+            "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_CONNECTED"
+        const val ACTION_GATT_DISCONNECTED =
+            "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_DISCONNECTED"
+        const val ACTION_GATT_SERVICES_DISCOVERED =
+            "com.example.bluetooth_le_gatt_sborka.ACTION_GATT_SERVICES_DISCOVERED"
+        const val ACTION_DATA_AVAILABLE =
+            "com.example.bluetooth_le_gatt_sborka.ACTION_DATA_AVAILABLE"
+        const val MEASUREMENTS_DATA = "com.example.bluetooth_le_gatt_sborka.MEASUREMENTS_DATA"
+        const val EXTRA_DATA = "com.example.bluetooth_le_gatt_sborka.ACTION_DATA"
 
-        characteristic.setValue(new byte[]{
-                (byte) (year & 255),
-                (byte) (year >> 8),
-                (byte) (calendar.get(2) + 1), // месяц
-                (byte) calendar.get(5), // день
-                (byte) calendar.get(11), // часы
-                (byte) calendar.get(12), // минуты
-                (byte) calendar.get(13) // секунды
-        });
-        return characteristic;
-    }
-
-    public static byte[] convertHexToByteArray(String str) {
-        char[] charArray = str.toCharArray();
-        int length = charArray.length / 2;
-        byte[] bArr = new byte[length];
-        for (int i = 0; i < length; i++) {
-            int i2 = i * 2;
-            int digit = Character.digit(charArray[i2 + 1], 16) | (Character.digit(charArray[i2], 16) << 4);
-            if (digit > 127) {
-                digit += InputDeviceCompat.SOURCE_ANY;
-            }
-            bArr[i] = (byte) digit;
+        /**
+         * UUID для прибора сердечного ритма
+         */
+        val UUID_HEART_RATE_MEASUREMENT =
+            UUID.fromString(SampleGattAttributes.HEART_RATE_MEASUREMENT)!!
+        val BLOOD_PRESSURE_MEASUREMENT =
+            UUID.fromString(SampleGattAttributes.BLOOD_PRESSURE_MEASUREMENT)!!
+        val FFF1_CHARACTERISTIC = UUID.fromString(SampleGattAttributes.FFF1_CHARACTERISTIC)!!
+        val FFF0_SERVICE = UUID.fromString(SampleGattAttributes.FFF0_SERVICE)!!
+        var codeRepeatCheck = ""
+        private const val TAG = "Medvedev1 BLES"
+        var bluetoothGatt: BluetoothGatt? = null
+        fun setDateAndTimeValueToCharacteristic(
+            characteristic: BluetoothGattCharacteristic,
+            calendar: Calendar
+        ): BluetoothGattCharacteristic {
+            val year = calendar[1] //год
+            characteristic.value = byteArrayOf(
+                (year and 255).toByte(),
+                (year shr 8).toByte(),
+                (calendar[2] + 1).toByte(),  // месяц
+                calendar[5].toByte(),  // день
+                calendar[11].toByte(),  // часы
+                calendar[12].toByte(),  // минуты
+                calendar[13].toByte() // секунды
+            )
+            return characteristic
         }
-        return bArr;
-    }
 
-    public void connectionWithTestoSmartPyrometer(BluetoothGatt bluetoothGatt) {
-
-        if (setNotification(bluetoothGatt.getService(FFF0_SERVICE).getCharacteristic(FFF2_CHARACTERISTIC), true)) {
-
-            BluetoothGattCharacteristic testoCharacteristic = (bluetoothGatt.getService(FFF0_SERVICE).getCharacteristic(FFF1_CHARACTERISTIC));
-            timeToChangeCharacteristicOnDevice();
-            if (testoCharacteristic.setValue(convertHexToByteArray(SampleGattAttributes.TO_TESTO_HEX_1))) {
-                if (!bluetoothGatt.writeCharacteristic(testoCharacteristic)) {
-                    Log.d(TAG, "TESTO ERROR 1");
+        fun convertHexToByteArray(str: String): ByteArray {
+            val charArray = str.toCharArray()
+            val length = charArray.size / 2
+            val bArr = ByteArray(length)
+            for (i in 0 until length) {
+                val i2 = i * 2
+                var digit = Character.digit(charArray[i2 + 1], 16) or (Character.digit(
+                    charArray[i2], 16
+                ) shl 4)
+                if (digit > 127) {
+                    digit += InputDeviceCompat.SOURCE_ANY
                 }
-            } else {
-                Log.d(TAG, "TESTO ERROR 0");
+                bArr[i] = digit.toByte()
             }
-        } else {
-            Log.d(TAG, " TESTO ERROR 3");
+            return bArr
         }
-    }
-
-    public void timeToChangeCharacteristicOnDevice() {
-        Thread oneSecondThread = new Thread() {
-            public void run() {
-                try {
-                    sleep(2000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        };
-        oneSecondThread.start();
     }
 }

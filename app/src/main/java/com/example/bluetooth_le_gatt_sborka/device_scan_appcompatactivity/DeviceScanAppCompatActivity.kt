@@ -1,450 +1,433 @@
-package com.example.bluetooth_le_gatt_sborka.device_scan_appcompatactivity;
+package com.example.bluetooth_le_gatt_sborka.device_scan_appcompatactivity
 
-import static android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY;
-import static com.example.bluetooth_le_gatt_sborka.Activity3.EXTRA_ACRESULT;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothService.DEVICE_NAME;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothService.MESSAGE_CONNECTION_FAILED;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothService.MESSAGE_CONNECTION_LOST;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothService.MESSAGE_DEVICE_NAME;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothService.MESSAGE_READ;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothService.MESSAGE_STATE_CHANGE;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothService.STATE_CONNECTED;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothService.STATE_CONNECTING;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothService.STATE_LISTEN;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothService.STATE_NONE;
-import static com.example.bluetooth_le_gatt_sborka.SampleGattAttributes.MANOMETER_ADDRESS;
-import static com.example.bluetooth_le_gatt_sborka.SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS;
-
-import android.Manifest;
-import android.app.AlertDialog;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothManager;
-import android.bluetooth.le.BluetoothLeScanner;
-import android.bluetooth.le.ScanCallback;
-import android.bluetooth.le.ScanResult;
-import android.bluetooth.le.ScanSettings;
-import android.content.Context;
-import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.os.Build;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.Message;
-import android.util.Log;
-import android.widget.TextView;
-import android.widget.Toast;
-
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-
-import com.example.bluetooth_le_gatt_sborka.Activity3;
-import com.example.bluetooth_le_gatt_sborka.BluetoothService;
-import com.example.bluetooth_le_gatt_sborka.DeviceControlActivity;
-import com.example.bluetooth_le_gatt_sborka.R;
-import com.example.bluetooth_le_gatt_sborka.support.Ac015;
-import com.example.bluetooth_le_gatt_sborka.support.AcResult;
-import com.example.bluetooth_le_gatt_sborka.support.MyDate;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
+import android.Manifest
+import android.app.AlertDialog
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothAdapter.LeScanCallback
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
+import android.bluetooth.le.*
+import android.content.DialogInterface
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.*
+import android.util.Log
+import android.view.View
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.ActivityResult
+import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
+import androidx.annotation.RequiresApi
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.example.bluetooth_le_gatt_sborka.*
+import com.example.bluetooth_le_gatt_sborka.support.Ac015
+import com.example.bluetooth_le_gatt_sborka.support.AcResult
+import com.example.bluetooth_le_gatt_sborka.support.MyDate
+import java.util.*
 
 /**
  * Для сканирования и отображения доступных устройств Bluetooth LE.
  */
-public class DeviceScanAppCompatActivity extends AppCompatActivity implements PermissionsProcessing {
-
-    public static final String TAG = DeviceScanAppCompatActivity.class.getSimpleName();
-    /**
-     * Bluetooth LE
-     */
-    private static final long SCAN_PERIOD = 1000000;
+class DeviceScanAppCompatActivity : AppCompatActivity(), PermissionsProcessing {
     /**
      * Обработка запроса на включение Bluetooth-модуля устройства
      */
-    private final ActivityResultLauncher<Intent> mStartForResult = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
-        if (result.getResultCode() == RESULT_CANCELED)
-            Toast.makeText(this, "Приложение не сможет подключаться к устройствам с отключенным Bluetooth-модулем!", Toast.LENGTH_SHORT).show();
-    });
+    private val mStartForResult =
+        registerForActivityResult(StartActivityForResult()) { result: ActivityResult ->
+            if (result.resultCode == RESULT_CANCELED) Toast.makeText(
+                this,
+                "Приложение не сможет подключаться к устройствам с отключенным Bluetooth-модулем!",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+
     /**
-     *
+     * Контракт, выполняющийся когда закрываются Activity выше в стеке
      */
-    private final ActivityResultLauncher<Intent> deviceControlActivity = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> openedNextActivity = false);
+    private val deviceControlActivity =
+        registerForActivityResult(StartActivityForResult()) {
+            openedNextActivity = false
+        }
+
     /**
      * Объект для использования API сканирования Bluetooth LE устройств
      */
-    BluetoothLeScanner bluetoothLeScanner;
+    private var bluetoothLeScanner: BluetoothLeScanner? = null
+
     /**
      * Настройки сканирования Bluetooth LE устройств
      */
-    ScanSettings bleScanSettings = null;
-    private TextView
-            viewProgress,
-            viewStatus;
-    private Ac015 mAc015;
-    private AlertDialog mDialog = null;
-    private AcResult mResult;
-    private final Handler handler = new Handler(Looper.getMainLooper()) {
-        public void handleMessage(Message msg) { //обработчик сообщений принятых от BTService
-            int messageType = msg.what;
-            switch (messageType) {
-                case MESSAGE_STATE_CHANGE:
-                    int state = msg.arg1;
-                    switch (state) {
-                        case STATE_NONE:
-                            Log.d(TAG, "MESSAGE_STATE_CHANGE/none");
-                            setViewStatus(R.string.bth_sts_none, null);
-                            break;
-                        case STATE_LISTEN:
-                            Log.d(TAG, "MESSAGE_STATE_CHANGE/listen");
-                            setViewStatus(R.string.bth_sts_listen, null);
-                            break;
-                        default:
-                            switch (state) {
-                                case STATE_CONNECTING:
-                                    Log.d(TAG, "MESSAGE_STATE_CHANGE/connecting");
-                                    setViewStatus(R.string.bth_sts_connecting, mAc015.device().getName());
-                                    break;
-                                case STATE_CONNECTED:
-                                    Log.d(TAG, "MESSAGE_STATE_CHANGE/connected");
-                                    setViewStatus(R.string.bth_sts_connected, mAc015.device().getName());
-                                    mAc015.initializeBuffer();
-                                    break;
+    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
+    private var bleScanSettings: ScanSettings =
+        ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
+    private lateinit var viewProgress: TextView
+    private lateinit var viewStatus: TextView
+    private var mAc015 = Ac015()
+    private var mDialog: AlertDialog? = null
+    private var mResult = AcResult()
+    private val handler: Handler = object : Handler(Looper.getMainLooper()) {
+        override fun handleMessage(msg: Message) { //обработчик сообщений принятых от BTService
+            when (msg.what) {
+                BluetoothService.MESSAGE_STATE_CHANGE -> {
+                    when (val state = msg.arg1) {
+                        BluetoothService.STATE_NONE -> {
+                            Log.d(TAG, "MESSAGE_STATE_CHANGE/none")
+                            setViewStatus(R.string.bth_sts_none, null)
+                        }
+                        BluetoothService.STATE_LISTEN -> {
+                            Log.d(TAG, "MESSAGE_STATE_CHANGE/listen")
+                            setViewStatus(R.string.bth_sts_listen, null)
+                        }
+                        else -> when (state) {
+                            BluetoothService.STATE_CONNECTING -> {
+                                Log.d(TAG, "MESSAGE_STATE_CHANGE/connecting")
+                                setViewStatus(R.string.bth_sts_connecting, mAc015.device.name)
                             }
-                            break;
+                            BluetoothService.STATE_CONNECTED -> {
+                                Log.d(TAG, "MESSAGE_STATE_CHANGE/connected")
+                                setViewStatus(R.string.bth_sts_connected, mAc015.device.name)
+                                mAc015.initializeBuffer()
+                            }
+                        }
                     }
-                    break;
-                case MESSAGE_READ:
-                    String data = new String((byte[]) msg.obj, 0, msg.arg1);
-                    Log.d(TAG, "MESSAGE_READ[" + data.replaceAll("\r", "x0D").replaceAll("\n", "x0A") + "]");
-                    dataReceived(data);
-                    break;
-                case MESSAGE_DEVICE_NAME:
-                    Log.d(TAG, "MESSAGE_DEVICE_NAME[" + msg.getData().getString(DEVICE_NAME) + "]");
-                    break;
-                case MESSAGE_CONNECTION_FAILED:
-                    Log.d(TAG, "MESSAGE_CONNECTION_FAILED sts=" + bluetoothService.getState());
-                    connectionFailed();
-                    break;
-                case MESSAGE_CONNECTION_LOST:
-                    Log.d(TAG, "MESSAGE_CONNECTION_LOST sts=" + bluetoothService.getState());
-                    Toast.makeText(DeviceScanAppCompatActivity.this, R.string.msg_connection_lost, Toast.LENGTH_SHORT).show();
-                    clear();
-                    break;
+                }
+                BluetoothService.MESSAGE_READ -> {
+                    val data = String((msg.obj as ByteArray), 0, msg.arg1)
+                    Log.d(
+                        TAG,
+                        "MESSAGE_READ[" + data.replace("\r".toRegex(), "x0D")
+                            .replace("\n".toRegex(), "x0A") + "]"
+                    )
+                    dataReceived(data)
+                }
+                BluetoothService.MESSAGE_DEVICE_NAME -> Log.d(
+                    TAG,
+                    "MESSAGE_DEVICE_NAME[" + msg.data.getString(BluetoothService.DEVICE_NAME) + "]"
+                )
+                BluetoothService.MESSAGE_CONNECTION_FAILED -> {
+                    Log.d(TAG, "MESSAGE_CONNECTION_FAILED sts=" + bluetoothService.state)
+                    connectionFailed()
+                }
+                BluetoothService.MESSAGE_CONNECTION_LOST -> {
+                    Log.d(TAG, "MESSAGE_CONNECTION_LOST sts=" + bluetoothService.state)
+                    Toast.makeText(
+                        this@DeviceScanAppCompatActivity,
+                        R.string.msg_connection_lost,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    clear()
+                }
             }
         }
-    };
-    private final BluetoothService bluetoothService = new BluetoothService(handler);
-    private String device = "error";
+    }
+    private lateinit var bluetoothService: BluetoothService
+    private var device = "error"
+
     /**
      * Флаг разрешённости всех опасных разрешений приложения пользователем.
      */
-    private boolean
-            allPermissionsGranted = false,
-            checkScanning,
-            openedNextActivity = false;
-    // deviceFound = false;
-    private BluetoothAdapter bluetoothAdapter;
+    private var allPermissionsGranted = false
+    private var checkScanning = false
+    private var openedNextActivity = false
+
+    private lateinit var bluetoothAdapter: BluetoothAdapter
+
     /**
      * Обратный вызов сканирования при API 20 и ниже
      */
-    private final BluetoothAdapter.LeScanCallback lowEnergyScanCallback = new BluetoothAdapter.LeScanCallback() {
+    private val lowEnergyScanCallback = LeScanCallback { bluetoothDevice, _, _ ->
 
         /**
          * @param bluetoothDevice название устройства
-         * @param rssi уровень сигнала, чем ниже значение, тем хуже сигнал
-         * @param scanRecord Содержание записи advertising, предлагаемой удаленным устройством.
          */
-        @Override
-        public void onLeScan(BluetoothDevice bluetoothDevice, int rssi, byte[] scanRecord) {
-            Log.d(TAG, " onLeScan LeScanCallback lowEnergyScanCallback");
-            runOnUiThread(() -> {
-                if (bluetoothDevice.getAddress().equals(device) && !openedNextActivity)
-                    connectWithDevice(bluetoothDevice);
-                Log.d(TAG, "lowEnergyScanCallback");
-            });
+        Log.d(TAG, " onLeScan LeScanCallback lowEnergyScanCallback")
+        runOnUiThread {
+            if (bluetoothDevice.address == device && !openedNextActivity) connectWithDevice(
+                bluetoothDevice
+            )
+            Log.d(TAG, "lowEnergyScanCallback")
         }
-    };
+    }
+
     /**
      * Обратный вызов сканирования при API выше 21
      */
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-    private final ScanCallback scanCallback = new ScanCallback() {
-        @Override
-        public void onScanResult(int callbackType, ScanResult scanResult) {
-            super.onScanResult(callbackType, scanResult);
-
-            if (scanResult.getDevice().getName() != null && scanResult.getDevice().getAddress() != null) {
-
-                runOnUiThread(() -> {
-
-                    BluetoothDevice bluetoothDevice = scanResult.getDevice();
+    private val scanCallback: ScanCallback = object : ScanCallback() {
+        override fun onScanResult(callbackType: Int, scanResult: ScanResult) {
+            super.onScanResult(callbackType, scanResult)
+            if (scanResult.device.name != null && scanResult.device.address != null) {
+                runOnUiThread {
+                    val bluetoothDevice = scanResult.device
 
                     // заметки себе: записать все адреса bluetooth устройств в класс SampleGattAttributes
                     // заметки себе: подключаться может по названию устройства, а не по мак адресам?
                     // заметки себе: сделать Тоаст с уведомлением о автоматическом подсоединении с конкретным устройством
 
                     // автоматическое соединение при сопряжении с Манометром u пирометром
-                    if (bluetoothDevice.getAddress().equals(device) && !openedNextActivity)
-                        connectWithDevice(bluetoothDevice);
-                });
+                    if (bluetoothDevice.address == device && !openedNextActivity) connectWithDevice(
+                        bluetoothDevice
+                    )
+                }
             }
         }
 
-        @Override
-        public void onBatchScanResults(List<ScanResult> results) {
-            super.onBatchScanResults(results);
-            Log.d(TAG, "onBatchScanResults, results size:" + results.size());
-            for (ScanResult sr : results) {
-                Log.d(TAG, "onBatchScanResults results:  " + sr.toString());
+        override fun onBatchScanResults(results: List<ScanResult>) {
+            super.onBatchScanResults(results)
+            Log.d(TAG, "onBatchScanResults, results size:" + results.size)
+            for (sr in results) {
+                Log.d(TAG, "onBatchScanResults results:  $sr")
             }
         }
 
-        @Override
-        public void onScanFailed(int errorCode) {
-            super.onScanFailed(errorCode);
-            Log.e(TAG, "onScanFailed, code is : " + errorCode);
+        override fun onScanFailed(errorCode: Int) {
+            super.onScanFailed(errorCode)
+            Log.e(TAG, "onScanFailed, code is : $errorCode")
         }
-    };
+    }
 
     /**
      * Функция обрабатывает @param data и отправляет результат теста в другие активити для сохранения в базе данных.
      */
-    private void dataReceived(String data) {
-        Date xtime = new Date();
-        String data2 = mAc015.receive(data);
-        if (data2.length() >= 1) {
-            int msgId = mAc015.analyze(data2);
-            setViewProgress(xtime, msgId);
-            if (mAc015.isResultReceived()) {
-                bluetoothService.stop();
-                mResult.setAcTime(xtime);
-                mResult.setAcValue(data2);
-
-                Intent intent = new Intent(getApplication(), Activity3.class);
-                intent.putExtra(EXTRA_ACRESULT, mResult);
-                startActivity(intent);
-            } else if (mAc015.isErrorReceived()) {
-                bluetoothService.stop();
-                Intent intent4 = new Intent();
-                intent4.putExtra("errm", getString(msgId));
-                setResult(RESULT_CANCELED, intent4);
-                finish();
+    private fun dataReceived(data: String) {
+        val xtime = Date()
+        val data2 = mAc015.receive(data)
+        if (data2.isNotEmpty()) {
+            val msgId = mAc015.analyze(data2)
+            setViewProgress(xtime, msgId)
+            if (mAc015.isResultReceived) {
+                bluetoothService.stop()
+                mResult.acTime(xtime)
+                mResult.acValue = data2
+                val intent = Intent(application, Activity3::class.java)
+                intent.putExtra(Activity3.EXTRA_ACRESULT, mResult)
+                startActivity(intent)
+            } else if (mAc015.isErrorReceived) {
+                bluetoothService.stop()
+                val intent4 = Intent()
+                intent4.putExtra("errm", getString(msgId))
+                setResult(RESULT_CANCELED, intent4)
+                finish()
             }
         }
     }
 
-    private void setViewProgress(Date date, int resId) {
-        viewProgress.setText(MyDate.toTimeString(date));
-        viewProgress.append(">");
-        viewProgress.append(getString(resId));
+    private fun setViewProgress(date: Date, resId: Int) {
+        viewProgress.text = MyDate.toTimeString(date)
+        viewProgress.append(">")
+        viewProgress.append(getString(resId))
     }
 
-    private void connectionFailed() {
-        AlertDialog.Builder adb = new AlertDialog.Builder(this);
-        adb.setTitle(mAc015.device().getName());
-        adb.setMessage(R.string.msg_confirm_power);
-        adb.setCancelable(false);
-        adb.setPositiveButton(R.string.connect, (dialog, which) -> {
-            bluetoothService.connect(mAc015.device());
-            dialog.dismiss();
-            mDialog = null;
-        });
-        adb.setNegativeButton(R.string.cancel, (dialog, which) -> {
-            dialog.dismiss();
-            mDialog = null;
-            bluetoothService.stop();
-            clear();
-        });
-        mDialog = adb.show();
+    private fun connectionFailed() {
+        val adb = AlertDialog.Builder(this)
+        adb.setTitle(mAc015.device.name)
+        adb.setMessage(R.string.msg_confirm_power)
+        adb.setCancelable(false)
+        adb.setPositiveButton(R.string.connect) { dialog: DialogInterface, _: Int ->
+            bluetoothService.connect(mAc015.device)
+            dialog.dismiss()
+            mDialog = null
+        }
+        adb.setNegativeButton(R.string.cancel) { dialog: DialogInterface, _: Int ->
+            dialog.dismiss()
+            mDialog = null
+            bluetoothService.stop()
+            clear()
+        }
+        mDialog = adb.show()
     }
 
-    private void connectPairedDevice() {
-        BluetoothDevice device = bluetoothService.getPairedDeviceByName("E-200B");
+    private fun connectPairedDevice() {
+        val device = bluetoothService.getPairedDeviceByName("E-200B")
         if (device == null) {
-            showToast(R.string.msg_notfound_paired_device);
-            return;
+            showToast(R.string.msg_notfound_paired_device)
+            return
         }
-        mResult.setDevice(device.getName());
-        mAc015.setConnectStart(device);
-        bluetoothService.connect(device);
+        mResult.deviceName = device.name
+        mAc015.setConnectStart(device)
+        bluetoothService.connect(device)
     }
 
-    private void showToast(int resId) {
+    private fun showToast(resId: Int) {
         if (resId > 0) {
-            Toast.makeText(getApplicationContext(), resId, Toast.LENGTH_SHORT).show();
+            Toast.makeText(applicationContext, resId, Toast.LENGTH_SHORT).show()
         }
     }
 
-    private void setViewStatus(int resId, String device) {
-        viewStatus.setText(resId);
+    private fun setViewStatus(resId: Int, device: String?) {
+        viewStatus.setText(resId)
         if (device != null) {
-            viewStatus.append(":");
-            viewStatus.append(device);
-            mResult.setDevice(device);
+            viewStatus.append(":")
+            viewStatus.append(device)
+            mResult.deviceName = device
         }
     }
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setTitle("Scan Bluetooth Low Energy Devices");
-        setContentView(R.layout.device_scan_appcompatactivity);
-        findViewById(R.id.next_alco_test).setOnClickListener(view -> {
-            if (allPermissionsGranted) {
-                if (bluetoothService.getState() == 0) {
-                    bluetoothService.start();
-                    connectPairedDevice();
-                }
-            } else new DialogFragment(this).show(getSupportFragmentManager(), "AlertDialog");
-        });
-        findViewById(R.id.next_term_test).setOnClickListener(view -> {
-            device = MICROLIFE_THERMOMETER_ADDRESS;
-            Log.d(TAG, "Нажата кнопка начала измерения температуры");
-            if (allPermissionsGranted) {
-                scanLowEnergyDevice(true);
-            } else new DialogFragment(this).show(getSupportFragmentManager(), "AlertDialog");
-        });
-        findViewById(R.id.next_pres_test).setOnClickListener(view -> {
-            device = MANOMETER_ADDRESS;
-            Log.d(TAG, "Нажата кнопка начала измерения давления");
-            if (allPermissionsGranted) {
-                scanLowEnergyDevice(true);
-            } else new DialogFragment(this).show(getSupportFragmentManager(), "AlertDialog");
-        });
-
-        checkBluetoothModule();
-
-        mAc015 = new Ac015();
-        mResult = new AcResult();
-
-        viewStatus = findViewById(R.id.bth_status);
-        viewProgress = findViewById(R.id.bth_progress);
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        title = "Scan Bluetooth Low Energy Devices"
+        setContentView(R.layout.device_scan_appcompatactivity)
+        checkBluetoothModule()
 
         //Инициализирует адаптер Bluetooth.
         // Для уровня API 18 и выше получите ссылку на BluetoothAdapter через BluetoothManager
-        final BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-        bluetoothAdapter = bluetoothManager.getAdapter();
+        bluetoothAdapter = (getSystemService(BLUETOOTH_SERVICE) as BluetoothManager).adapter
+        bluetoothService = BluetoothService(handler, bluetoothAdapter)
 
-        checkPermissions();
+        findViewById<View>(R.id.next_alco_test).setOnClickListener {
+            if (allPermissionsGranted) {
+                if (bluetoothService.state == 0) {
+                    bluetoothService.start()
+                    connectPairedDevice()
+                }
+            } else DialogFragment(this).show(
+                supportFragmentManager, "AlertDialog"
+            )
+        }
+        findViewById<View>(R.id.next_term_test).setOnClickListener {
+            device = SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS
+            Log.d(TAG, "Нажата кнопка начала измерения температуры")
+            if (allPermissionsGranted) {
+                scanLowEnergyDevice(true)
+            } else DialogFragment(this).show(
+                supportFragmentManager, "AlertDialog"
+            )
+        }
+        findViewById<View>(R.id.next_pres_test).setOnClickListener {
+            device = SampleGattAttributes.MANOMETER_ADDRESS
+            Log.d(TAG, "Нажата кнопка начала измерения давления")
+            if (allPermissionsGranted) {
+                scanLowEnergyDevice(true)
+            } else DialogFragment(this).show(
+                supportFragmentManager, "AlertDialog"
+            )
+        }
+        viewStatus = findViewById(R.id.bth_status)
+        viewProgress = findViewById(R.id.bth_progress)
+        checkPermissions()
     }
 
     /**
      * Функция проверки наличия Bluetooth-модуля и его возможности использования технологии
      * поключения Bluetooth LE
-     * <p>
+     *
+     *
      * Завершает приложение при отсутствии необходимого на устройстве
-     * </p>
+     *
      */
-    private void checkBluetoothModule() {
-        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH)) {
-            Toast.makeText(this, "На данном устройстве отсутствует Bluetooth-модуль! Приложение не будет функционировать!", Toast.LENGTH_SHORT).show();
-            finish();
+    private fun checkBluetoothModule() {
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH)) {
+            Toast.makeText(
+                this,
+                "На данном устройстве отсутствует Bluetooth-модуль! Приложение не будет функционировать!",
+                Toast.LENGTH_SHORT
+            ).show()
+            finish()
         }
-        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
-            Toast.makeText(this, "Данное устройство не поддерживает возможность подключения Bluetooth LE! Приложение не будет функционировать!", Toast.LENGTH_SHORT).show();
-            finish();
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+            Toast.makeText(
+                this,
+                "Данное устройство не поддерживает возможность подключения Bluetooth LE! Приложение не будет функционировать!",
+                Toast.LENGTH_SHORT
+            ).show()
+            finish()
         }
-
     }
 
-    private void clear() {
-        viewStatus.setText("");
-        viewProgress.setText("");
+    private fun clear() {
+        viewStatus.text = ""
+        viewProgress.text = ""
     }
 
-    @Override
-    public void checkPermissions() {
-        ArrayList<String> permissionsList = new ArrayList<>();
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q)
-            permissionsList.add(Manifest.permission.ACCESS_COARSE_LOCATION);
-        else {
-            permissionsList.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION);
-            permissionsList.add(Manifest.permission.ACCESS_FINE_LOCATION);
+    override fun checkPermissions() {
+        val permissionsList = ArrayList<String>()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) permissionsList.add(Manifest.permission.ACCESS_COARSE_LOCATION) else {
+            permissionsList.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            permissionsList.add(Manifest.permission.ACCESS_FINE_LOCATION)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                permissionsList.addAll(Arrays.asList(
+                permissionsList.addAll(
+                    listOf(
                         Manifest.permission.BLUETOOTH_CONNECT,
-                        Manifest.permission.BLUETOOTH_SCAN));
+                        Manifest.permission.BLUETOOTH_SCAN
+                    )
+                )
             }
         }
         // Очищаем список опасных разрешений от тех, разрешение для которых уже дано
-        for (int i = 0; i < permissionsList.size(); i++) {
-            String permission = permissionsList.get(i);
-            if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
-                permissionsList.remove(i);
-                i--;
+        var i = 0
+        while (i < permissionsList.size) {
+            val permission = permissionsList[i]
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    permission
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                permissionsList.removeAt(i)
+                i--
             }
+            i++
         }
-        if (permissionsList.size() > 0) {
-            ActivityCompat.requestPermissions(this, permissionsList.toArray(new String[0]), 13);
-        } else allPermissionsGranted = true;
+        if (permissionsList.size > 0) {
+            ActivityCompat.requestPermissions(this, permissionsList.toTypedArray(), 13)
+        } else allPermissionsGranted = true
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 13) {
-            if (grantResults.length > 0) {
-                allPermissionsGranted = true;
-                for (int result : grantResults) {
+            if (grantResults.isNotEmpty()) {
+                allPermissionsGranted = true
+                for (result in grantResults) {
                     if (result != PackageManager.PERMISSION_GRANTED) {
-                        allPermissionsGranted = false;
-                        break;
+                        allPermissionsGranted = false
+                        break
                     }
                 }
             }
         }
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
+    override fun onStart() {
+        super.onStart()
 
         // Убедитесь, что на устройстве включен Bluetooth. Если Bluetooth в настоящее время не включен,
         // активируйте намерение отобразить диалоговое окно с просьбой предоставить пользователю разрешение
         // на его включение
-        if (!bluetoothAdapter.isEnabled()) {
-            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            mStartForResult.launch(enableBtIntent);
+        if (!bluetoothAdapter.isEnabled) {
+            val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+            mStartForResult.launch(enableBtIntent)
         }
     }
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-        if (checkScanning) scanLowEnergyDevice(false);
-        bluetoothService.stop();
+    override fun onPause() {
+        super.onPause()
+        if (checkScanning) scanLowEnergyDevice(false)
+        bluetoothService.stop()
         if (mDialog != null) {
-            mDialog.dismiss();
-            mDialog = null;
+            mDialog!!.dismiss()
+            mDialog = null
         }
     }
 
-    /**
-     * Bluetooth LE
-     */
-    public void connectWithDevice(BluetoothDevice device) {
+    fun connectWithDevice(device: BluetoothDevice) {
         // deviceFound = true;
-        setViewStatus(R.string.bth_sts_connected, device.getName());
-
-        final Intent intent = new Intent(this, DeviceControlActivity.class);
-        intent.putExtra(DeviceControlActivity.EXTRAS_DEVICE_NAME, device.getName());
-        intent.putExtra(DeviceControlActivity.EXTRAS_DEVICE_ADDRESS, device.getAddress());
+        setViewStatus(R.string.bth_sts_connected, device.name)
+        val intent = Intent(this, DeviceControlActivity::class.java)
+        intent.putExtra(DeviceControlActivity.EXTRAS_DEVICE_NAME, device.name)
+        intent.putExtra(DeviceControlActivity.EXTRAS_DEVICE_ADDRESS, device.address)
         if (checkScanning) {
             //останавливается поиск
-            startOrStopScanBle(true);
-            checkScanning = false;
+            startOrStopScanBle(true)
+            checkScanning = false
         }
-        deviceControlActivity.launch(intent);
-        openedNextActivity = true;
+        deviceControlActivity.launch(intent)
+        openedNextActivity = true
     }
 
     /**
@@ -452,74 +435,66 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
      *
      * @param check true - запускает сканирование, false - останавливает
      */
-    private void scanLowEnergyDevice(final boolean check) {
-        String name = "";
-        if (device.equals(MANOMETER_ADDRESS)) name += "UA-911BT-C";
-        else if (device.equals(MICROLIFE_THERMOMETER_ADDRESS)) name += "NC150 BT";
-        setViewStatus(R.string.bth_sts_connecting, name);
+    private fun scanLowEnergyDevice(check: Boolean) {
+        var name = ""
+        if (device == SampleGattAttributes.MANOMETER_ADDRESS) name += "UA-911BT-C" else if (device == SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS) name += "NC150 BT"
+        setViewStatus(R.string.bth_sts_connecting, name)
         // если true то сканирование идёт, а после запускается handler.postDelayed с остановкой сканирования
         if (check) {
             // Останавливает сканирование по истечении заданного периода сканирования.
             // PostDelayed - задержка по времени
-            handler.postDelayed(() -> {
-                checkScanning = false;
-                startOrStopScanBle(true);
-                Log.d(TAG, " scanLowEnergyDevice.stopLEScan: " + true);
-            }, SCAN_PERIOD);
-
-            checkScanning = true;
-            startOrStopScanBle(false);
-            Log.d(TAG, " scanLowEnergyDevice.startLeScan " + true);
-
+            handler.postDelayed({
+                checkScanning = false
+                startOrStopScanBle(true)
+                Log.d(TAG, " scanLowEnergyDevice.stopLEScan: " + true)
+            }, SCAN_PERIOD)
+            checkScanning = true
+            startOrStopScanBle(false)
+            Log.d(TAG, " scanLowEnergyDevice.startLeScan " + true)
         } else {
-            checkScanning = false;
-            startOrStopScanBle(true);
-            Log.d(TAG, " scanLowEnergyDevice.stopLeScan" + false + "№2");
+            checkScanning = false
+            startOrStopScanBle(true)
+            Log.d(TAG, " scanLowEnergyDevice.stopLeScan" + false + "№2")
         }
     }
 
-    /** Bluetooth LE */
-    public void startOrStopScanBle(boolean stopTask) {
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && bluetoothAdapter != null) {
-            Log.d(TAG, "VERSION.SDK_INT: " + Build.VERSION.SDK_INT + " check#1");
+    private fun startOrStopScanBle(stopTask: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            Log.d(TAG, "VERSION.SDK_INT: " + Build.VERSION.SDK_INT + " check#1")
             if (bluetoothLeScanner == null) {
-                bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
-                // настройки для поиска термометра, взяты из приложения Microlife
-                bleScanSettings = new ScanSettings.Builder().setScanMode(SCAN_MODE_LOW_LATENCY).build();
+                bluetoothLeScanner = bluetoothAdapter.bluetoothLeScanner
             }
-
             if (stopTask) {
-                Log.d(TAG, "stop to scan bluetooth devices.");
-                checkScanning = false;
+                Log.d(TAG, "stop to scan bluetooth devices.")
+                checkScanning = false
                 try {
-                    bluetoothLeScanner.stopScan(scanCallback);
-                } catch (Exception e2) {
-                    Log.e(TAG, "stopScan error." + e2.getMessage());
+                    bluetoothLeScanner!!.stopScan(scanCallback)
+                } catch (e2: Exception) {
+                    Log.e(TAG, "stopScan error." + e2.message)
                 }
             } else {
-                Log.d(TAG, "begin to scan bluetooth devices...");
-                checkScanning = true;
-
+                Log.d(TAG, "begin to scan bluetooth devices...")
+                checkScanning = true
                 try {
-                    bluetoothLeScanner.startScan(scanCallback);
-                    //bluetoothLeScanner.startScan((List<ScanFilter>) null, bleScanSettings, scanCallback);
-                } catch (Exception e) {
-                    Log.e(TAG, "startScan error." + e.getMessage());
+                    // bluetoothLeScanner!!.startScan(scanCallback)
+                    bluetoothLeScanner!!.startScan(null, bleScanSettings, scanCallback)
+                } catch (e: Exception) {
+                    Log.e(TAG, "startScan error." + e.message)
                 }
-
-            }
-
-        } else if (bluetoothAdapter != null) {
-            Log.d(TAG, "VERSION.SDK_INT: " + Build.VERSION.SDK_INT + " check#2");
-
-            if (stopTask) {
-                bluetoothAdapter.stopLeScan(lowEnergyScanCallback);
-            } else {
-                bluetoothAdapter.startLeScan(lowEnergyScanCallback);
             }
         } else {
-            Log.e(TAG, "bluetoothAdapter = null");
+            Log.d(TAG, "VERSION.SDK_INT: " + Build.VERSION.SDK_INT + " check#2")
+            if (stopTask) {
+                bluetoothAdapter.stopLeScan(lowEnergyScanCallback)
+            } else {
+                bluetoothAdapter.startLeScan(lowEnergyScanCallback)
+            }
         }
+    }
+
+    companion object {
+        val TAG: String = DeviceScanAppCompatActivity::class.java.simpleName
+
+        private const val SCAN_PERIOD: Long = 10000
     }
 }

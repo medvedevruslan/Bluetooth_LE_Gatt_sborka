@@ -1,60 +1,37 @@
-package com.example.bluetooth_le_gatt_sborka.support;
+package com.example.bluetooth_le_gatt_sborka.support
 
-import java.io.Serializable;
-import java.util.Date;
+import java.io.Serializable
+import java.util.*
 
-/** Класс-шаблон данных результата тестирования */
-public class AcResult implements Serializable {
-    /** Дата теста */
-    private String acDate,
-    /** Время теста */
-    acTime,
-    /** Значение теста уровня алкоголя */
-    acValue,
-    /** Имя устройства */
-    deviceName;
+/** Класс-шаблон данных результата тестирования  */
+class AcResult : Serializable {
 
-    public AcResult() {
-        initialize();
-    }
+    /** Дата теста  */
+    private var _acDate = ""
+    val acDate: String
+        get() = _acDate
 
-    public void setDevice(String _device) {
-        deviceName = _device;
-    }
+    /** Время теста  */
+    private var _acTime = ""
+    val acTime: String
+        get() = _acTime
 
-    private void initialize() {
-        acValue = "";
-        acTime = "";
-        acDate = "";
-        deviceName = "";
-    }
-
-    public String getDeviceName() {
-        return deviceName;
-    }
-
-    public String getAcDate() {
-        return acDate;
-    }
-
-    public String getAcTime() {
-        return acTime;
-    }
-
-    public void setAcTime(Date acTime2) {
-        acDate = MyDate.toDateString(acTime2);
-        acTime = MyDate.toTimeString(acTime2);
-    }
-
-    public String getAcValue() {
-        return acValue;
-    }
-
-    public void setAcValue(String acValue2) {
-        String[] items = acValue2.split("[:,]");
-        if (items.length > 1) {
-            acValue = items[1];
-            acValue += "mg/L";
+    /** Значение теста уровня алкоголя  */
+    var acValue = ""
+        set(value) {
+            val answer = value.substring(value.indexOf(":") + 1, value.indexOf(","))
+            if (answer.isNotEmpty()) {
+                field = answer
+                field += " mg/L"
+            }
         }
+
+    /** Имя устройства  */
+    var deviceName: String = ""
+
+    fun acTime(acTime: Date) {
+        _acDate = MyDate.toDateString(acTime)
+        _acTime = MyDate.toTimeString(acTime)
     }
+
 }

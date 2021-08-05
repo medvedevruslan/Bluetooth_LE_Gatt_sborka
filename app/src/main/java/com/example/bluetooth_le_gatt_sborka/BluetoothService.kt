@@ -1,311 +1,314 @@
-package com.example.bluetooth_le_gatt_sborka;
+package com.example.bluetooth_le_gatt_sborka
 
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothServerSocket;
-import android.bluetooth.BluetoothSocket;
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.Message;
-import android.util.Log;
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothServerSocket
+import android.bluetooth.BluetoothSocket
+import android.os.Bundle
+import android.os.Handler
+import android.util.Log
+import java.io.IOException
+import java.io.InputStream
+import java.util.*
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Set;
-import java.util.UUID;
+class BluetoothService(
+    private val handler: Handler,
+    private val bluetoothAdapter: BluetoothAdapter
+) {
+    private var _state = STATE_NONE
 
-public class BluetoothService {
-    public static final String
-            DEVICE_NAME = "device_name";
-    public static final int
-            MESSAGE_STATE_CHANGE = 1,
-            MESSAGE_READ = 2,
-            MESSAGE_DEVICE_NAME = 4,
-            MESSAGE_CONNECTION_FAILED = 6,
-            MESSAGE_CONNECTION_LOST = 7,
-            STATE_NONE = 0,
-            STATE_LISTEN = 1,
-            STATE_CONNECTING = 2,
-            STATE_CONNECTED = 3;
-    private static final UUID MY_UUID_INSECURE = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
-    private static final String
-            NAME_INSECURE = "SMAC1",
-            TAG = "BTService";
-    private final BluetoothAdapter mAdapter = BluetoothAdapter.getDefaultAdapter();
-    private final Handler mHandler;
-    private ConnectThread mConnectThread;
-    private int mState = STATE_NONE;
-    private AcceptThread mAcceptThread;
-    private ConnectedThread mConnectedThread;
-    private boolean mStop;
+    @get:Synchronized
+    @set:Synchronized
+    var state: Int
+        get() = _state
+        private set(state) {
+            Log.i(TAG, "setState($state)")
+            _state = state
+            handler.obtainMessage(MESSAGE_STATE_CHANGE, state, -1).sendToTarget()
+        }
 
-    public BluetoothService(Handler handler) {
-        mHandler = handler;
-        mStop = false;
-    }
+    private var connectThread: ConnectThread? = null
+    private var acceptThread: AcceptThread? = null
+    private var connectedThread: ConnectedThread? = null
+    private var stop = false
 
-    public synchronized int getState() {
-        return mState;
-    }
-
-    private synchronized void setState(int state) {
-        Log.i(TAG, "setState(" + state + ")");
-        mState = state;
-        mHandler.obtainMessage(MESSAGE_STATE_CHANGE, state, -1).sendToTarget();
-    }
-
-    public synchronized BluetoothDevice getPairedDeviceByName(String targetName) {
-        BluetoothDevice result;
-        Set<BluetoothDevice> pairedDevices = mAdapter.getBondedDevices();
-        result = null;
-        if (pairedDevices.size() > 0) {
-            for (BluetoothDevice device : pairedDevices) {
-                if (device.getName().startsWith(targetName)) {
-                    result = device;
+    @Synchronized
+    fun getPairedDeviceByName(targetName: String?): BluetoothDevice? {
+        var result: BluetoothDevice?
+        val pairedDevices = bluetoothAdapter.bondedDevices
+        result = null
+        if (pairedDevices.size > 0) {
+            for (device in pairedDevices) {
+                if (device.name.startsWith(targetName!!)) {
+                    result = device
                 }
             }
         }
-        return result;
+        return result
     }
 
-    public synchronized void start() {
-        Log.i(TAG, "start()");
-        mStop = false;
-        if (mConnectThread != null) {
-            mConnectThread.cancel();
-            mConnectThread = null;
+    @Synchronized
+    fun start() {
+        Log.i(TAG, "start()")
+        stop = false
+        if (connectThread != null) {
+            connectThread!!.cancel()
+            connectThread = null
         }
-        if (mConnectedThread != null) {
-            mConnectedThread.cancel();
-            mConnectedThread = null;
+        if (connectedThread != null) {
+            connectedThread!!.cancel()
+            connectedThread = null
         }
-        setState(STATE_LISTEN);
-        if (mAcceptThread == null) {
-            AcceptThread acceptThread = new AcceptThread();
-            mAcceptThread = acceptThread;
-            acceptThread.start();
+        state = STATE_LISTEN
+        if (acceptThread == null) {
+            acceptThread = AcceptThread()
+            acceptThread!!.start()
         }
     }
 
-    public synchronized void stop() {
-        Log.i(TAG, "stop() mState=" + mState);
-        if (mState != STATE_NONE) {
-            mStop = true;
-            if (mConnectThread != null) {
-                mConnectThread.cancel();
-                mConnectThread = null;
+    @Synchronized
+    fun stop() {
+        Log.i(TAG, "stop() mState=$_state")
+        if (_state != STATE_NONE) {
+            stop = true
+            if (connectThread != null) {
+                connectThread!!.cancel()
+                connectThread = null
             }
-            if (mConnectedThread != null) {
-                mConnectedThread.cancel();
-                mConnectedThread = null;
+            if (connectedThread != null) {
+                connectedThread!!.cancel()
+                connectedThread = null
             }
-            if (mAcceptThread != null) {
-                mAcceptThread.cancel();
-                mAcceptThread = null;
+            if (acceptThread != null) {
+                acceptThread!!.cancel()
+                acceptThread = null
             }
-            setState(STATE_NONE);
+            state = STATE_NONE
         }
     }
 
-    public synchronized void connect(BluetoothDevice device) {
-        Log.i(TAG, "connect(" + device.getName() + "/" + device.getAddress() + ")");
-        if (mState == STATE_CONNECTING && mConnectThread != null) {
-            mConnectThread.cancel();
-            mConnectThread = null;
+    @Synchronized
+    fun connect(device: BluetoothDevice) {
+        Log.i(TAG, "connect(" + device.name + "/" + device.address + ")")
+        if (_state == STATE_CONNECTING && connectThread != null) {
+            connectThread!!.cancel()
+            connectThread = null
         }
-        if (mConnectedThread != null) {
-            mConnectedThread.cancel();
-            mConnectedThread = null;
+        if (connectedThread != null) {
+            connectedThread!!.cancel()
+            connectedThread = null
         }
-        ConnectThread connectThread = new ConnectThread(device);
-        mConnectThread = connectThread;
-        connectThread.start();
-        setState(STATE_CONNECTING);
+        connectThread = ConnectThread(device)
+        connectThread!!.start()
+        state = STATE_CONNECTING
     }
 
-    public synchronized void connected(BluetoothSocket socket, BluetoothDevice device) {
-        Log.i(TAG, "connected()");
-        if (mConnectThread != null) {
-            mConnectThread.cancel();
-            mConnectThread = null;
+    @Synchronized
+    fun connected(socket: BluetoothSocket, device: BluetoothDevice) {
+        Log.i(TAG, "connected()")
+        if (connectThread != null) {
+            connectThread!!.cancel()
+            connectThread = null
         }
-        if (mConnectedThread != null) {
-            mConnectedThread.cancel();
-            mConnectedThread = null;
+        if (connectedThread != null) {
+            connectedThread!!.cancel()
+            connectedThread = null
         }
-        if (mAcceptThread != null) {
-            mAcceptThread.cancel();
-            mAcceptThread = null;
+        if (acceptThread != null) {
+            acceptThread!!.cancel()
+            acceptThread = null
         }
-        ConnectedThread connectedThread = new ConnectedThread(socket);
-        mConnectedThread = connectedThread;
-        connectedThread.start();
-        Message msg = mHandler.obtainMessage(MESSAGE_DEVICE_NAME);
-        Bundle bundle = new Bundle();
-        bundle.putString(DEVICE_NAME, device.getName());
-        msg.setData(bundle);
-        mHandler.sendMessage(msg);
-        setState(STATE_CONNECTED);
+        connectedThread = ConnectedThread(socket)
+        connectedThread!!.start()
+        val msg = handler.obtainMessage(MESSAGE_DEVICE_NAME)
+        val bundle = Bundle()
+        bundle.putString(DEVICE_NAME, device.name)
+        msg.data = bundle
+        handler.sendMessage(msg)
+        state = STATE_CONNECTED
     }
 
-    private void connectionFailed() {
-        synchronized (this) {
-            Log.i(TAG, "connectionFailed() mStop=" + this.mStop);
-            if (!mStop) {
-                mHandler.obtainMessage(MESSAGE_CONNECTION_FAILED).sendToTarget();
-                start();
-            }
-        }
-    }
-
-    private void connectionLost() {
-        synchronized (this) {
-            Log.i(TAG, "connectionLost() mStop=" + mStop);
-            if (!mStop) {
-                mHandler.obtainMessage(MESSAGE_CONNECTION_LOST).sendToTarget();
+    private fun connectionFailed() {
+        synchronized(this) {
+            Log.i(TAG, "connectionFailed() mStop=$stop")
+            if (!stop) {
+                handler.obtainMessage(MESSAGE_CONNECTION_FAILED).sendToTarget()
+                start()
             }
         }
     }
 
-    private class AcceptThread extends Thread {
-        private final BluetoothServerSocket mmServerSocket;
-
-        public AcceptThread() {
-            Log.i(TAG, "AcceptThread()");
-            BluetoothServerSocket tmp = null;
-            try {
-                tmp = mAdapter.listenUsingInsecureRfcommWithServiceRecord(NAME_INSECURE, MY_UUID_INSECURE);
-            } catch (IOException e) {
-                Log.e(TAG, "AcceptThread() failed " + e.getMessage());
+    private fun connectionLost() {
+        synchronized(this) {
+            Log.i(TAG, "connectionLost() mStop=$stop")
+            if (!stop) {
+                handler.obtainMessage(MESSAGE_CONNECTION_LOST).sendToTarget()
             }
-            mmServerSocket = tmp;
         }
+    }
 
-        public void run() {
-            Log.i(TAG, "AcceptThread.run:" + Thread.currentThread().getId());
-            setName("AcceptThread");
-            while (mState != STATE_CONNECTED) {
+    private inner class AcceptThread : Thread() {
+        private val serverSocket: BluetoothServerSocket
+        override fun run() {
+            Log.i(TAG, "AcceptThread.run:" + currentThread().id)
+            name = "AcceptThread"
+            while (_state != STATE_CONNECTED) {
                 try {
-                    BluetoothSocket socket = mmServerSocket.accept();
+                    val socket = serverSocket.accept()
                     if (socket != null) {
-                        synchronized (this) {
-                            if (mState != STATE_NONE) {
-                                if (mState == STATE_LISTEN || mState == STATE_CONNECTING) {
-                                    connected(socket, socket.getRemoteDevice());
+                        synchronized(this) {
+                            if (_state != STATE_NONE) {
+                                if (_state == STATE_LISTEN || _state == STATE_CONNECTING) {
+                                    connected(socket, socket.remoteDevice)
                                 }
                             }
                             try {
-                                socket.close();
-                            } catch (IOException e) {
-                                Log.e(TAG, "AcceptThread.run: Could not close unwanted socket " + e.getMessage());
+                                socket.close()
+                            } catch (e: IOException) {
+                                Log.e(
+                                    TAG,
+                                    "AcceptThread.run: Could not close unwanted socket " + e.message
+                                )
                             }
                         }
                     }
-                } catch (IOException e2) {
-                    Log.e(TAG, "AcceptThread.run: accept() failed " + e2.getMessage());
+                } catch (e2: IOException) {
+                    Log.e(TAG, "AcceptThread.run: accept() failed " + e2.message)
                 }
             }
-            Log.i(TAG, "AcceptThread.end");
+            Log.i(TAG, "AcceptThread.end")
         }
 
-        public void cancel() {
-            Log.i(TAG, "AcceptThread.cancel");
+        fun cancel() {
+            Log.i(TAG, "AcceptThread.cancel")
             try {
-                mmServerSocket.close();
-            } catch (IOException e) {
-                Log.e(TAG, "AcceptThread.cancel failed " + e.getMessage());
+                serverSocket.close()
+            } catch (e: IOException) {
+                Log.e(TAG, "AcceptThread.cancel failed " + e.message)
             }
+        }
+
+        init {
+            Log.i(TAG, "AcceptThread()")
+            lateinit var tmp: BluetoothServerSocket
+            try {
+                tmp = bluetoothAdapter.listenUsingInsecureRfcommWithServiceRecord(
+                    NAME_INSECURE,
+                    MY_UUID_INSECURE
+                )
+            } catch (e: IOException) {
+                Log.e(TAG, "AcceptThread() failed " + e.message)
+            }
+            serverSocket = tmp
         }
     }
 
-    private class ConnectThread extends Thread {
-        private final BluetoothDevice mmDevice;
-        private final BluetoothSocket mmSocket;
-
-        public ConnectThread(BluetoothDevice device) {
-            Log.i(TAG, "ConnectThread()");
-            mmDevice = device;
-            BluetoothSocket tmp = null;
+    private inner class ConnectThread(device: BluetoothDevice) : Thread() {
+        private val device: BluetoothDevice
+        private val socket: BluetoothSocket
+        override fun run() {
+            Log.i(TAG, "ConnectThread.run:" + currentThread().id)
+            name = "ConnectThread"
+            bluetoothAdapter.cancelDiscovery()
             try {
-                tmp = device.createInsecureRfcommSocketToServiceRecord(MY_UUID_INSECURE);
-            } catch (IOException e) {
-                Log.e(TAG, "ConnectThread(): createRfcommSocketToServiceRecord() failed " + e.getMessage());
-            }
-            mmSocket = tmp;
-        }
-
-        public void run() {
-            Log.i(TAG, "ConnectThread.run:" + Thread.currentThread().getId());
-            setName("ConnectThread");
-            mAdapter.cancelDiscovery();
-            try {
-                mmSocket.connect();
-                synchronized (this) {
-                    mConnectThread = null;
-                }
-                connected(mmSocket, mmDevice);
-                Log.i(TAG, "ConnectThread.end");
-            } catch (IOException e) {
+                socket.connect()
+                synchronized(this) { connectThread = null }
+                connected(socket, device)
+                Log.i(TAG, "ConnectThread.end")
+            } catch (e: IOException) {
                 try {
-                    mmSocket.close();
-                } catch (IOException e2) {
-                    Log.e(TAG, "ConnectThread.run: unable to close() socket during connection failure " + e2.getMessage());
+                    socket.close()
+                } catch (e2: IOException) {
+                    Log.e(
+                        TAG,
+                        "ConnectThread.run: unable to close() socket during connection failure " + e2.message
+                    )
                 }
-                connectionFailed();
+                connectionFailed()
             }
         }
 
-        public void cancel() {
-            Log.i(TAG, "ConnectThread.cancel");
+        fun cancel() {
+            Log.i(TAG, "ConnectThread.cancel")
             try {
-                mmSocket.close();
-            } catch (IOException e) {
-                Log.e(TAG, "ConnectThread.cancel failed " + e.getMessage());
+                socket.close()
+            } catch (e: IOException) {
+                Log.e(TAG, "ConnectThread.cancel failed " + e.message)
             }
+        }
+
+        init {
+            Log.i(TAG, "ConnectThread()")
+            this.device = device
+            lateinit var tmp: BluetoothSocket
+            try {
+                tmp = device.createInsecureRfcommSocketToServiceRecord(MY_UUID_INSECURE)
+            } catch (e: IOException) {
+                Log.e(
+                    TAG,
+                    "ConnectThread(): createRfcommSocketToServiceRecord() failed " + e.message
+                )
+            }
+            socket = tmp
         }
     }
 
-    private class ConnectedThread extends Thread {
-        private final InputStream mmInStream;
-        private final BluetoothSocket mmSocket;
-
-        public ConnectedThread(BluetoothSocket socket) {
-            Log.i(TAG, "ConnectedThread()");
-            mmSocket = socket;
-            InputStream tmpIn = null;
-            try {
-                tmpIn = socket.getInputStream();
-            } catch (IOException e) {
-                Log.e(TAG, "ConnectThread(): temp sockets not created " + e.getMessage());
-            }
-            mmInStream = tmpIn;
-        }
-
-        public void run() {
-            Log.i(TAG, "ConnectedThread.run:" + Thread.currentThread().getId());
-            byte[] buffer = new byte[1024];
+    private inner class ConnectedThread(socket: BluetoothSocket) : Thread() {
+        private val inStream: InputStream
+        private val socket: BluetoothSocket
+        override fun run() {
+            Log.i(TAG, "ConnectedThread.run:" + currentThread().id)
+            val buffer = ByteArray(1024)
             while (true) {
                 try {
-                    int bytes = mmInStream.read(buffer, 0, buffer.length);
+                    val bytes = inStream.read(buffer, 0, buffer.size)
                     if (bytes > 0) {
-                        mHandler.obtainMessage(MESSAGE_READ, bytes, -1, buffer).sendToTarget();
+                        handler.obtainMessage(MESSAGE_READ, bytes, -1, buffer).sendToTarget()
                     }
-                } catch (IOException e) {
-                    Log.e(TAG, "ConnectedThread.run: disconnected " + e.getMessage());
-                    connectionLost();
-                    Log.i(TAG, "ConnectedThread.end");
-                    return;
+                } catch (e: IOException) {
+                    Log.e(TAG, "ConnectedThread.run: disconnected " + e.message)
+                    connectionLost()
+                    Log.i(TAG, "ConnectedThread.end")
+                    return
                 }
             }
         }
 
-        public void cancel() {
-            Log.i(TAG, "ConnectedThread.cancel");
+        fun cancel() {
+            Log.i(TAG, "ConnectedThread.cancel")
             try {
-                mmSocket.close();
-            } catch (IOException e) {
-                Log.e(TAG, "ConnectedThread.cancel failed " + e.getMessage());
+                socket.close()
+            } catch (e: IOException) {
+                Log.e(TAG, "ConnectedThread.cancel failed " + e.message)
             }
         }
+
+        init {
+            Log.i(TAG, "ConnectedThread()")
+            this.socket = socket
+            lateinit var tmpIn: InputStream
+            try {
+                tmpIn = socket.inputStream
+            } catch (e: IOException) {
+                Log.e(TAG, "ConnectThread(): temp sockets not created " + e.message)
+            }
+            inStream = tmpIn
+        }
+    }
+
+    companion object {
+        const val DEVICE_NAME = "device_name"
+        const val MESSAGE_STATE_CHANGE = 1
+        const val MESSAGE_READ = 2
+        const val MESSAGE_DEVICE_NAME = 4
+        const val MESSAGE_CONNECTION_FAILED = 6
+        const val MESSAGE_CONNECTION_LOST = 7
+        const val STATE_NONE = 0
+        const val STATE_LISTEN = 1
+        const val STATE_CONNECTING = 2
+        const val STATE_CONNECTED = 3
+        private val MY_UUID_INSECURE = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        private const val NAME_INSECURE = "SMAC1"
+        private const val TAG = "BTService"
     }
 }

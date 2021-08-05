@@ -1,177 +1,170 @@
-package com.example.bluetooth_le_gatt_sborka;
+package com.example.bluetooth_le_gatt_sborka
 
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.content.Context;
-import android.content.Intent;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.Message;
-import android.util.Log;
+import android.content.Context
+import android.content.Intent
+import android.os.Handler
+import android.os.Looper
+import android.os.Message
+import android.util.Log
+import java.util.*
 
-import java.util.Date;
-import java.util.UUID;
-
-import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.ACTION_DATA_AVAILABLE;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.MEASUREMENTS_DATA;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.bluetoothGatt;
-import static com.example.bluetooth_le_gatt_sborka.BluetoothLEService.codeRepeatCheck;
-
-public class ThermometerMeasureData {
-    private final Context context;
-
-    public ThermometerMeasureData(Context context) {
-        this.context = context;
-    }
-
-    private final static String TAG = "Medvedev1_TMS";
-    public static final String HEADER = "4D";
-    public static final String DEVICE_CODE_THERMO_APP_REPLY = "FE";
-    private static final int UPLOAD_MEASURE_DATA = 160;
-    private static final int SEND_REQUEST = 161;
-    private static final String CMD_REPLY_RESULT_SUCCESS = "81";
-    public StringBuilder hexString;
-
-    Handler thermoHandler = new Handler(Looper.getMainLooper()) {
-
-        public void handleMessage(Message message) {
-            super.handleMessage(message);
-            byte[] value = (byte[]) message.obj;
-            String valueFromCharacteristic = "";
-            String zero = "0";
-
-            for (byte b : value) {
-                String valueString = Integer.toHexString(b);
+class ThermometerMeasureData(private val context: Context) {
+    lateinit var hexString: StringBuilder
+    @JvmField
+    var thermoHandler: Handler = object : Handler(Looper.getMainLooper()) {
+        override fun handleMessage(message: Message) {
+            super.handleMessage(message)
+            val value = message.obj as ByteArray
+            var valueFromCharacteristic = ""
+            val zero = "0"
+            for (b in value) {
+                var valueString = Integer.toHexString(b.toInt())
                 // Log.d(TAG, "ffffff to null1: " + valueString);
-                if (valueString.length() == 1) {
-                    valueString = zero + valueString;
-                } else if (valueString.length() > 5) {
-                    valueString = valueString.replace("ffffff", "");
+                if (valueString.length == 1) {
+                    valueString = zero + valueString
+                } else if (valueString.length > 5) {
+                    valueString = valueString.replace("ffffff", "")
                     // Log.d(TAG, "ffffff to null2: " + valueString);
                 }
-                valueFromCharacteristic += valueString;
+                valueFromCharacteristic += valueString
             }
-
-            Log.d(TAG, "valueFromCharacteristic : " + valueFromCharacteristic);
-            String dataWithMeasurementsAndDateTime = valueFromCharacteristic.substring(10, valueFromCharacteristic.length() - 2);
-            int cmdFromValue = Integer.parseInt(valueFromCharacteristic.substring(8, 10), 16);
-            Log.d(TAG, "cmdFromValue : " + cmdFromValue + " | data : " + dataWithMeasurementsAndDateTime);
-
-            if (cmdFromValue == UPLOAD_MEASURE_DATA) {
-                Log.d(TAG, "UPLOAD_MEASURE_DATA data：" + dataWithMeasurementsAndDateTime);
-                hexString = new StringBuilder().append(dataWithMeasurementsAndDateTime);
-                parseDataFromValue();
-                replyUploadMeasureData();
-
-            } else if (cmdFromValue != SEND_REQUEST) {
-                Log.d(TAG, "neponyatnii signal from Microlife");
-
-            } else {
-                if (codeRepeatCheck.contains(valueFromCharacteristic)) {
-                    Log.d(TAG, "povtor signala, ignore");
-                    return;
-                } else {
-                    codeRepeatCheck += valueFromCharacteristic;
+            Log.d(TAG, "valueFromCharacteristic : $valueFromCharacteristic")
+            val dataWithMeasurementsAndDateTime =
+                valueFromCharacteristic.substring(10, valueFromCharacteristic.length - 2)
+            val cmdFromValue = valueFromCharacteristic.substring(8, 10).toInt(16)
+            Log.d(TAG, "cmdFromValue : $cmdFromValue | data : $dataWithMeasurementsAndDateTime")
+            when {
+                cmdFromValue == UPLOAD_MEASURE_DATA -> {
+                    Log.d(TAG, "UPLOAD_MEASURE_DATA data：$dataWithMeasurementsAndDateTime")
+                    hexString = StringBuilder().append(dataWithMeasurementsAndDateTime)
+                    parseDataFromValue()
+                    replyUploadMeasureData()
                 }
+                cmdFromValue != SEND_REQUEST -> {
+                    Log.d(TAG, "neponyatnii signal from Microlife")
+                }
+                else -> {
+                    if (BluetoothLEService.codeRepeatCheck.contains(valueFromCharacteristic)) {
+                        Log.d(TAG, "povtor signala, ignore")
+                        return
+                    } else {
+                        BluetoothLEService.codeRepeatCheck += valueFromCharacteristic
+                    }
 
-                // Log.d(TAG, "SEND_REQUEST data： " + dataWithMeasurementsAndDateTime);
-                replyMacAddressOrTime(new Date(System.currentTimeMillis()));
+                    // Log.d(TAG, "SEND_REQUEST data： " + dataWithMeasurementsAndDateTime);
+                    replyMacAddressOrTime(Date(System.currentTimeMillis()))
+                }
             }
         }
-    };
-
-    public int parseMeasurement(int i) {
-        int parseInt = Integer.parseInt(hexString.substring(0, i), 16);
-        hexString.delete(0, i);
-        return parseInt;
     }
 
-    public void parseDataFromValue() {
-        int parseIntAmbientTemperature = parseMeasurement(4);
-        int parseInt2Mode = parseMeasurement(4);
-        int parseInt3Day = parseMeasurement(2);
-        int parseInt4Hour = parseMeasurement(2);
-        int parseInt5Minute = parseMeasurement(2);
-        int parseInt6Year = parseMeasurement(2);
-
-        int year = parseInt6Year & 63;
-        float ambientTemperature = ((float) parseIntAmbientTemperature) / 100.0f;
-        int mode = (32768 & parseInt2Mode) >> 15;
-        float measureTemperature = ((float) (parseInt2Mode & 32767)) / 100.0f;
-        int month = ((parseInt3Day & 192) >> 4) | ((parseInt4Hour & 192) >> 6);
-        int day = parseInt3Day & 63;
-        int hour = parseInt4Hour & 63;
-        Log.d(TAG, "measurements | year: " + year + " | ambientTemperature: " + ambientTemperature
-                + " | mode:" + mode + " | measureTemperature:" + measureTemperature
-                + " | measurementTempearure: " + " | month:" + month + " | day:" + day + " | hour:" + hour + " | minute:" + parseInt5Minute);
-
-        Intent intent = new Intent(ACTION_DATA_AVAILABLE);
-        intent.putExtra(MEASUREMENTS_DATA, measureTemperature + " C");
-        context.sendBroadcast(intent);
+    fun parseMeasurement(i: Int): Int {
+        val parseInt = hexString.substring(0, i).toInt(16)
+        hexString.delete(0, i)
+        return parseInt
     }
 
-    public void replyMacAddressOrTime(Date date) {
+    fun parseDataFromValue() {
+        val parseIntAmbientTemperature = parseMeasurement(4)
+        val parseInt2Mode = parseMeasurement(4)
+        val parseInt3Day = parseMeasurement(2)
+        val parseInt4Hour = parseMeasurement(2)
+        val parseInt5Minute = parseMeasurement(2)
+        val parseInt6Year = parseMeasurement(2)
+        val year = parseInt6Year and 63
+        val ambientTemperature = parseIntAmbientTemperature.toFloat() / 100.0f
+        val mode = 32768 and parseInt2Mode shr 15
+        val measureTemperature = (parseInt2Mode and 32767).toFloat() / 100.0f
+        val month = parseInt3Day and 192 shr 4 or (parseInt4Hour and 192 shr 6)
+        val day = parseInt3Day and 63
+        val hour = parseInt4Hour and 63
+        Log.d(
+            TAG, "measurements | year: " + year + " | ambientTemperature: " + ambientTemperature
+                    + " | mode:" + mode + " | measureTemperature:" + measureTemperature
+                    + " | measurementTempearure: " + " | month:" + month + " | day:" + day + " | hour:" + hour + " | minute:" + parseInt5Minute
+        )
+        val intent = Intent(BluetoothLEService.ACTION_DATA_AVAILABLE)
+        intent.putExtra(BluetoothLEService.MEASUREMENTS_DATA, "$measureTemperature C")
+        context.sendBroadcast(intent)
+    }
 
-        String str1 = String.format("%02X", date.getYear() % 100) +
-                String.format("%02X", date.getMonth() + 1) +
-                String.format("%02X", date.getDate()) +
-                String.format("%02X", date.getHours()) +
-                String.format("%02X", date.getMinutes()) +
-                String.format("%02X", date.getSeconds());
-
-        String buildCmdStringForThermo = buildCmdStringForThermo("01", str1);
+    fun replyMacAddressOrTime(date: Date) {
+        val str1 = String.format("%02X", date.year % 100) + String.format(
+            "%02X",
+            date.month + 1
+        ) + String.format("%02X", date.date) + String.format(
+            "%02X",
+            date.hours
+        ) + String.format("%02X", date.minutes) + String.format("%02X", date.seconds)
+        val buildCmdStringForThermo = buildCmdStringForThermo("01", str1)
         //  Log.d(TAG, "replyMacAddressOrTime：" + buildCmdStringForThermo);
-        writeToBLE(buildCmdStringForThermo);
+        writeToBLE(buildCmdStringForThermo)
     }
 
-    public String buildCmdStringForThermo(String str, String str2) {
-        String format = String.format("%04x", (str2.length() / 2) + 1 + 1);
+    private fun buildCmdStringForThermo(str: String, str2: String): String {
+        val format = String.format("%04x", str2.length / 2 + 1 + 1)
         // Log.d(TAG, "buildCmdStringForThermo = " + "4DFE" + format + str + str2 + calcChecksum(HEADER, DEVICE_CODE_THERMO_APP_REPLY, format, str, str2));
-        return "4DFE" + format + str + str2 + calcChecksum(HEADER, DEVICE_CODE_THERMO_APP_REPLY, format, str, str2);
+        return "4DFE$format$str$str2" + calcChecksum(
+            HEADER,
+            DEVICE_CODE_THERMO_APP_REPLY,
+            format,
+            str,
+            str2
+        )
     }
 
-    public String calcChecksum(String str, String str2, String str3, String str4, String str5) {
+    fun calcChecksum(str: String, str2: String, str3: String, str4: String, str5: String): String {
 /*        Log.d(TAG, "calcChecksum cmd = " + str4);
         Log.d(TAG, "calcChecksum lengthstr = " + str3);
         Log.d(TAG, "calcChecksum  data = " + str5);*/
-        try {
-            int parseInt = Integer.parseInt(str, 16);
-            String str6 = str2 + str3 + str4 + str5;
+        return try {
+            var parseInt = str.toInt(16)
+            val str6 = str2 + str3 + str4 + str5
             // Log.d(TAG, "calcChecksum AllData = " + str6);
-            int length = str6.length();
-            int i = 0;
-            for (int i2 = 2; i2 <= length; i2 += 2) {
-                parseInt += Integer.parseInt(str6.substring(i, i2), 16);
-                i += 2;
+            val length = str6.length
+            var i = 0
+            var i2 = 2
+            while (i2 <= length) {
+                parseInt += str6.substring(i, i2).toInt(16)
+                i += 2
+                i2 += 2
             }
-            String format = String.format("%02x", parseInt & 255);
+            val format = String.format("%02x", parseInt and 255)
             // Log.d(TAG, "calcChecksum = " + format);
-            return format.toUpperCase();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return "00";
+            format.uppercase()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            "00"
         }
     }
 
-    public void replyUploadMeasureData() {
-        String buildCmdStringForThermo = this.buildCmdStringForThermo(CMD_REPLY_RESULT_SUCCESS, "");
+    fun replyUploadMeasureData() {
+        val buildCmdStringForThermo = buildCmdStringForThermo(CMD_REPLY_RESULT_SUCCESS, "")
 
         // Log.d(TAG, "replyUploadMeasureData：" + buildCmdStringForThermo);
-        this.writeToBLE(buildCmdStringForThermo);
+        writeToBLE(buildCmdStringForThermo)
     }
 
     // заметка себе: может написать отправку сообщений writecharacteristic в отдельном потоке? пример есть в Microlife APP class: MyWriteThread.
-
-    public synchronized void writeToBLE(String str) {
-        Log.d(TAG, "writeToBLE = " + str);
+    @Synchronized
+    fun writeToBLE(str: String?) {
+        Log.d(TAG, "writeToBLE = $str")
         if (str == null) {
-            return;
+            return
         }
+        val thermoCharacteristic =
+            BluetoothLEService.bluetoothGatt?.getService(UUID.fromString(SampleGattAttributes.FFF0_SERVICE))
+                ?.getCharacteristic(UUID.fromString(SampleGattAttributes.FFF2_CHARACTERISTIC))
+        thermoCharacteristic?.value = BluetoothLEService.convertHexToByteArray(str)
+        BluetoothLEService.bluetoothGatt?.writeCharacteristic(thermoCharacteristic)
+    }
 
-        BluetoothGattCharacteristic thermoCharacteristic = (bluetoothGatt.getService(UUID.fromString(SampleGattAttributes.FFF0_SERVICE))
-                .getCharacteristic(UUID.fromString(SampleGattAttributes.FFF2_CHARACTERISTIC)));
-
-        thermoCharacteristic.setValue(BluetoothLEService.convertHexToByteArray(str));
-
-        bluetoothGatt.writeCharacteristic(thermoCharacteristic);
+    companion object {
+        private const val TAG = "Medvedev1_TMS"
+        const val HEADER = "4D"
+        const val DEVICE_CODE_THERMO_APP_REPLY = "FE"
+        private const val UPLOAD_MEASURE_DATA = 160
+        private const val SEND_REQUEST = 161
+        private const val CMD_REPLY_RESULT_SUCCESS = "81"
     }
 }

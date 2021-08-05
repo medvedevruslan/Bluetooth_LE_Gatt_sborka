@@ -1,48 +1,44 @@
-package com.example.bluetooth_le_gatt_sborka;
+package com.example.bluetooth_le_gatt_sborka
 
-import android.content.Intent;
-import android.os.Bundle;
-import android.view.View;
-import android.view.Window;
-import android.widget.TextView;
+import android.os.Bundle
+import android.view.View
+import android.view.Window
+import android.widget.Button
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import com.example.bluetooth_le_gatt_sborka.support.AcResult
 
-import androidx.appcompat.app.AppCompatActivity;
-
-import com.example.bluetooth_le_gatt_sborka.support.AcResult;
-
-public class Activity3 extends AppCompatActivity implements View.OnClickListener {
-
-    public static final String EXTRA_ACRESULT = "acresult";
-
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        requestWindowFeature(Window.FEATURE_NO_TITLE);
-        setContentView(R.layout.result);
-        Intent intent = getIntent();
-        AcResult mAcResult = (AcResult) intent.getSerializableExtra(EXTRA_ACRESULT);
-        initializeView(mAcResult);
-        findViewById(R.id.button_back).setOnClickListener(this);
+class Activity3 : AppCompatActivity(), View.OnClickListener {
+    public override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        requestWindowFeature(Window.FEATURE_NO_TITLE)
+        setContentView(R.layout.result)
+        val mAcResult = intent.getSerializableExtra(EXTRA_ACRESULT) as AcResult
+        initializeView(mAcResult)
+        findViewById<Button>(R.id.button_back).setOnClickListener(this)
     }
 
-    private void initializeView(AcResult acResult) {
-        ((TextView) findViewById(R.id.ac_date)).setText(acResult.getAcDate());
-        ((TextView) findViewById(R.id.ac_time)).setText(acResult.getAcTime());
-        TextView viewValue = findViewById(R.id.ac_value);
-        viewValue.setText(acResult.getAcValue());
-
-        float value = Float.parseFloat(viewValue.getText().toString().substring(0, 5));
+    private fun initializeView(acResult: AcResult) {
+        (findViewById<View>(R.id.ac_date) as TextView).text = acResult.acDate
+        (findViewById<View>(R.id.ac_time) as TextView).text = acResult.acTime
+        val viewValue = findViewById<TextView>(R.id.ac_value)
+        viewValue.text = acResult.acValue
+        val value = acResult.acValue.substring(0, 5).toFloat()
         if (value >= 0.16f) {
-            viewValue.setTextColor(getResources().getColor(R.color.red));
+            viewValue.setTextColor(ContextCompat.getColor(this, R.color.red))
         } else {
-            viewValue.setTextColor(getResources().getColor(R.color.green));
+            viewValue.setTextColor(ContextCompat.getColor(this, R.color.green))
         }
-
-        if (getSupportActionBar() != null) getSupportActionBar().setTitle(acResult.getDeviceName());
+        if (supportActionBar != null) supportActionBar!!.title = acResult.deviceName
         // ((TextView) findViewById(R.id.device_name)).setText(acResult.getDeviceName());
     }
 
-    public void onClick(View v) {
-        int id = v.getId();
-        if (id == R.id.button_back) finish();
+    override fun onClick(v: View) {
+        if (v.id == R.id.button_back) finish()
+    }
+
+    companion object {
+        const val EXTRA_ACRESULT = "acresult"
     }
 }
