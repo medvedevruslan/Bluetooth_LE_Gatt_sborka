@@ -21,7 +21,6 @@ import androidx.core.view.InputDeviceCompat;
 
 import java.util.Arrays;
 import java.util.Calendar;
-import java.util.List;
 import java.util.UUID;
 
 
@@ -48,17 +47,11 @@ public class BluetoothLEService extends Service {
     public final static UUID FFF0_SERVICE = UUID.fromString(SampleGattAttributes.FFF0_SERVICE);
     public static String codeRepeatCheck = "";
     private final static String TAG = "Medvedev1 BLES";
-    private static final int
-            STATE_DISCONNECTED = 0,
-            STATE_CONNECTING = 1,
-            STATE_CONNECTED = 2;
     private final IBinder binder = new LocalBinder();
     public static BluetoothGatt bluetoothGatt;
     private BluetoothManager bluetoothManager;
     private BluetoothAdapter bluetoothAdapter;
     private String bluetoothDeviceAddress;
-    private int statusConnectToTesto = 0;
-    private int connectionStatus = STATE_DISCONNECTED;
     //Реализация методов обратного вызова для событий GATT,
     //о которых заботится приложение. Например, изменение подключения и обнаружение служб.
     public final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
@@ -68,7 +61,6 @@ public class BluetoothLEService extends Service {
             String intentAction;
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 intentAction = ACTION_GATT_CONNECTED;
-                connectionStatus = STATE_CONNECTED;
                 broadcastUpdate(intentAction);
                 Log.d(TAG, "Connected to GATT server");
                 //Попытки обнаружить службы после успешного подключения.
@@ -77,7 +69,6 @@ public class BluetoothLEService extends Service {
                 Log.d(TAG, "Попытка запустить обнаружение сервисов: " + bluetoothGatt.discoverServices());
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 intentAction = ACTION_GATT_DISCONNECTED;
-                connectionStatus = STATE_DISCONNECTED;
                 Log.d(TAG, "Disconnected from GATT server");
                 codeRepeatCheck = "";
                 broadcastUpdate(intentAction);
@@ -125,7 +116,7 @@ public class BluetoothLEService extends Service {
         public void onCharacteristicRead(BluetoothGatt bluetoothGatt,
                                          BluetoothGattCharacteristic characteristic, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
+                broadcastUpdate(characteristic);
             }
         }
 
@@ -133,13 +124,13 @@ public class BluetoothLEService extends Service {
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             Log.d(TAG, "onCharacteristicWrite == BluetoothGatt：" + bluetoothGatt + " BluetoothGattCharacteristic：" + characteristic + " status：" + status);
             if (status == BluetoothGatt.GATT_SUCCESS)
-                broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
+                broadcastUpdate(characteristic);
         }
 
         // обратный вызов об изменении характеристик ble
         @Override
         public void onCharacteristicChanged(BluetoothGatt bluetoothGatt, BluetoothGattCharacteristic characteristic) {
-            broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
+            broadcastUpdate(characteristic);
         }
     };
 
@@ -148,8 +139,8 @@ public class BluetoothLEService extends Service {
         sendBroadcast(intent);
     }
 
-    private void broadcastUpdate(final String action, final BluetoothGattCharacteristic characteristic) {
-        final Intent intent = new Intent(action);
+    private void broadcastUpdate(final BluetoothGattCharacteristic characteristic) {
+        final Intent intent = new Intent(BluetoothLEService.ACTION_DATA_AVAILABLE);
 
         //Это особая обработка профиля измерения частоты пульса.
         // Анализ данных выполняется в соответствии со спецификациями профиля:
@@ -234,15 +225,10 @@ public class BluetoothLEService extends Service {
         }
 
         //Ранее подключенное устройство. Попытка переподключиться.
-        if (bluetoothDeviceAddress != null && deviceAddress.equals(bluetoothDeviceAddress)
+        if (deviceAddress.equals(bluetoothDeviceAddress)
                 && bluetoothGatt != null) {
             Log.d(TAG, "Попытка использовать существующий mBluetoothGatt для подключения.");
-            if (bluetoothGatt.connect()) {
-                connectionStatus = STATE_CONNECTING;
-                return true;
-            } else {
-                return false;
-            }
+            return bluetoothGatt.connect();
         }
 
         final BluetoothDevice bluetoothDevice = bluetoothAdapter.getRemoteDevice(deviceAddress);
@@ -256,36 +242,8 @@ public class BluetoothLEService extends Service {
         bluetoothGatt = bluetoothDevice.connectGatt(this, false, gattCallback);
         //Log.d(TAG, "Попытка создать новое соединение");
         bluetoothDeviceAddress = deviceAddress;
-        connectionStatus = STATE_CONNECTING;
 
         return true;
-    }
-
-    /**
-     * Отключает существующее соединение или отменяет ожидающее соединение.
-     * Результат отключения передается асинхронно через обратный вызов
-     */
-    public void disconnect() {
-        if (bluetoothAdapter == null || bluetoothGatt == null) {
-            Log.d(TAG, "BluetoothAdapter не инициализирован");
-            return;
-        }
-        bluetoothGatt.disconnect();
-    }
-
-
-    public void readCharacteristic(BluetoothGattCharacteristic characteristic) {
-        if (bluetoothAdapter == null || bluetoothGatt == null) {
-            Log.d(TAG, "BluetoothAdapter не инициализирован");
-            return;
-        }
-        bluetoothGatt.readCharacteristic(characteristic);
-    }
-
-
-    public List<BluetoothGattService> getSupportedGattServices() {
-        if (bluetoothGatt == null) return null;
-        return bluetoothGatt.getServices();
     }
 
     @Override
@@ -319,33 +277,6 @@ public class BluetoothLEService extends Service {
             return BluetoothLEService.this;
         }
     }
-
-    // /**
-    //  * Функция отправки значения характеристики по UUID
-    //  *
-    //  * @param gatt GATT соединённого устройства
-    //  */
-    // private void sendValue(BluetoothGatt gatt) {
-    //     if (gatt == null) {
-    //         Log.e("Error", "BluetoothAdapter not initialized!");
-    //         return;
-    //     }
-    //     BluetoothGattCharacteristic characteristic = gatt.getService(UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb")).getCharacteristic(UUID.fromString("0000fff2-0000-1000-8000-00805f9b34fb"));
-    //     if (characteristic == null) {
-    //         Log.e("Error", "Can't get characteristic!");
-    //         return;
-    //     }
-    //     byte[] command = new byte[]{};
-    //     characteristic.setValue(command);
-    //
-    //     if (!gatt.writeCharacteristic(characteristic)) {
-    //         Log.e(TAG, String.format("ERROR: writeCharacteristic failed for characteristic: %s", characteristic.getUuid()));
-    //         Toast.makeText(getApplicationContext(), String.format("Ошибка записи значения характеристики %s!", characteristic.getUuid()), Toast.LENGTH_SHORT).show();
-    //     } else {
-    //         Log.d(TAG, String.format("Writing <%s> to characteristic <%s>", Arrays.toString(command), characteristic.getUuid()));
-    //     }
-    // }
-
 
     /**
      * Функция попытки подключения к уст-ву [testo 805i или ???].
@@ -442,16 +373,6 @@ public class BluetoothLEService extends Service {
         return bArr;
     }
 
-    /*  public static byte[] hexStringToByteArray(String s) {
-          int len = s.length();
-          byte[] data = new byte[len / 2];
-          for (int i = 0; i < len; i += 2) {
-              data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
-                      + Character.digit(s.charAt(i + 1), 16));
-          }
-          return data;
-      }
-  */
     public void connectionWithTestoSmartPyrometer(BluetoothGatt bluetoothGatt) {
 
         if (setNotification(bluetoothGatt.getService(FFF0_SERVICE).getCharacteristic(FFF2_CHARACTERISTIC), true)) {
@@ -483,63 +404,3 @@ public class BluetoothLEService extends Service {
         oneSecondThread.start();
     }
 }
-
-
-
-/*
-
-0)fff2 notification +++
-
-1) to fff1
-5600030000000c69023e81 +++
-
-1.1) from fff2
-07000000000001ac (Без реакции на смартфоне)
-
-
-проверить можно ли без этих запросов {
-
-
-3) to fff1 (запрос версии прошивки)
-200000000000077b
-
-4) from fff2 (возврат версиии прошивки)
-070004000000009c01000020
-
-5) to fff1
-04001500000005930f0000004669726d77617265
-56657273696f6e304f (запрос версии прошивки)
-
-a1) from fff2
-07001200000004d40c0000003030312e3130312e
-303030314409 (возврат версии прошивки)
-
-6) to fff1
-110000000000035a (battery Level)
-
-6.1) from fff2
-07000000000001ac
-
-потом приходит уровень батареи в 2х пакетах с определенной периодичностью, пример:
-108016000000071d0c000000426174746572794c
-6576656ca2c9b8423206
-
-}
-
-
-7) to fff1  (material)
-05001a0000000756100000004d6174657269616c
-
-8) to fff1 (emission)
-456d697373696f6e3333733f0471
-
-8.1) from fff2
-07000000000001ac
-
-9.1) from fff2 (после нажатия на кнопку на устройстве)
-108012000000062d0b000000427574746f6e436c
-69636b01fae8
-
-9.2) значения температур по fff2 в 2х пакетах
-
-*/

@@ -177,6 +177,5 @@ public class DeviceControlActivity extends AppCompatActivity {
 
     private void updateConnectionState(int resourceId) {
         Log.i(TAG, getString(resourceId));
-        // runOnUiThread(() -> connectionStatus.setText(resourceId));
     }
 }

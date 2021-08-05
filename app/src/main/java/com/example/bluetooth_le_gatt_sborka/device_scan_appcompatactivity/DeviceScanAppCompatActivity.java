@@ -24,15 +24,12 @@ import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
@@ -48,14 +45,12 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.example.bluetooth_le_gatt_sborka.Activity3;
-import com.example.bluetooth_le_gatt_sborka.BluetoothLEService;
 import com.example.bluetooth_le_gatt_sborka.BluetoothService;
 import com.example.bluetooth_le_gatt_sborka.DeviceControlActivity;
 import com.example.bluetooth_le_gatt_sborka.R;
 import com.example.bluetooth_le_gatt_sborka.support.Ac015;
 import com.example.bluetooth_le_gatt_sborka.support.AcResult;
 import com.example.bluetooth_le_gatt_sborka.support.MyDate;
-import com.example.bluetooth_le_gatt_sborka.support.MyPreference;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -82,9 +77,7 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
     /**
      *
      */
-    private final ActivityResultLauncher<Intent> deviceControlActivity = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
-        openedNextActivity = false;
-    });
+    private final ActivityResultLauncher<Intent> deviceControlActivity = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> openedNextActivity = false);
     /**
      * Объект для использования API сканирования Bluetooth LE устройств
      */
@@ -93,7 +86,6 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
      * Настройки сканирования Bluetooth LE устройств
      */
     ScanSettings bleScanSettings = null;
-    private BluetoothLEService bluetoothLEService;
     private TextView
             viewProgress,
             viewStatus;
@@ -222,7 +214,6 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
             Log.e(TAG, "onScanFailed, code is : " + errorCode);
         }
     };
-    private ServiceConnection serviceConnection;
 
     /**
      * Функция обрабатывает @param data и отправляет результат теста в другие активити для сохранения в базе данных.
@@ -232,20 +223,15 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
         String data2 = mAc015.receive(data);
         if (data2.length() >= 1) {
             int msgId = mAc015.analyze(data2);
-            // if (msgId == R.string.ac_result) {
-            //     setViewProgress(xtime, msgId);
-            // }
             setViewProgress(xtime, msgId);
             if (mAc015.isResultReceived()) {
                 bluetoothService.stop();
                 mResult.setAcTime(xtime);
                 mResult.setAcValue(data2);
-                int resId = mResult.saveResult(this, mResult);
-                if (resId == 0) {
-                    Intent intent = new Intent(getApplication(), Activity3.class);
-                    intent.putExtra(EXTRA_ACRESULT, mResult);
-                    startActivity(intent);
-                }
+
+                Intent intent = new Intent(getApplication(), Activity3.class);
+                intent.putExtra(EXTRA_ACRESULT, mResult);
+                startActivity(intent);
             } else if (mAc015.isErrorReceived()) {
                 bluetoothService.stop();
                 Intent intent4 = new Intent();
@@ -315,7 +301,6 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
         findViewById(R.id.next_alco_test).setOnClickListener(view -> {
             if (allPermissionsGranted) {
                 if (bluetoothService.getState() == 0) {
-                    mResult.setTestType("alco_test");
                     bluetoothService.start();
                     connectPairedDevice();
                 }
@@ -325,7 +310,6 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
             device = MICROLIFE_THERMOMETER_ADDRESS;
             Log.d(TAG, "Нажата кнопка начала измерения температуры");
             if (allPermissionsGranted) {
-                mResult.setTestType("temp_test");
                 scanLowEnergyDevice(true);
             } else new DialogFragment(this).show(getSupportFragmentManager(), "AlertDialog");
         });
@@ -333,7 +317,6 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
             device = MANOMETER_ADDRESS;
             Log.d(TAG, "Нажата кнопка начала измерения давления");
             if (allPermissionsGranted) {
-                mResult.setTestType("pres_test");
                 scanLowEnergyDevice(true);
             } else new DialogFragment(this).show(getSupportFragmentManager(), "AlertDialog");
         });
@@ -342,7 +325,6 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
 
         mAc015 = new Ac015();
         mResult = new AcResult();
-        mResult.setFromPreference(new MyPreference(this));
 
         viewStatus = findViewById(R.id.bth_status);
         viewProgress = findViewById(R.id.bth_progress);
@@ -446,12 +428,6 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
         }
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        unbindService(serviceConnection);
-    }
-
     /**
      * Bluetooth LE
      */
@@ -465,16 +441,10 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
         if (checkScanning) {
             //останавливается поиск
             startOrStopScanBle(true);
-            //bluetoothAdapter.stopLeScan(lowEnergyScanCallback);
             checkScanning = false;
         }
         deviceControlActivity.launch(intent);
         openedNextActivity = true;
-
-        // Intent gattServiceIntent = new Intent(this, BluetoothLEService.class);
-//
-        // if (serviceConnection == null) bindService(gattServiceIntent, serviceConnection(device.getAddress()), BIND_AUTO_CREATE);
-        // else bindService(gattServiceIntent, serviceConnection, BIND_AUTO_CREATE);
     }
 
     /**
@@ -508,9 +478,7 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
         }
     }
 
-    /**
-     * Bluetooth LE
-     */
+    /** Bluetooth LE */
     public void startOrStopScanBle(boolean stopTask) {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && bluetoothAdapter != null) {
@@ -553,26 +521,5 @@ public class DeviceScanAppCompatActivity extends AppCompatActivity implements Pe
         } else {
             Log.e(TAG, "bluetoothAdapter = null");
         }
-    }
-
-    //Код для управления жизненным циклом службы.
-    private ServiceConnection serviceConnection(String deviceAddress) {
-        return serviceConnection = new ServiceConnection() {
-            @Override
-            public void onServiceConnected(ComponentName name, IBinder service) {
-                bluetoothLEService = ((BluetoothLEService.LocalBinder) service).getService();
-                if (!bluetoothLEService.initialize()) {
-                    Log.d(TAG, "Невозможно инициализировать BluetoothManager");
-                    finish();
-                }
-                //Автоматически подключается к устройству при успешной инициализации запуска к блютуз параметрам устройства.
-                bluetoothLEService.connect(deviceAddress);
-            }
-
-            @Override
-            public void onServiceDisconnected(ComponentName name) {
-                bluetoothLEService = null;
-            }
-        };
     }
 }

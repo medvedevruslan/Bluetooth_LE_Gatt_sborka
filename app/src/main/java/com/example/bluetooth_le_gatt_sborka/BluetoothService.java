@@ -20,7 +20,7 @@ public class BluetoothService {
     public static final int
             MESSAGE_STATE_CHANGE = 1,
             MESSAGE_READ = 2,
-    MESSAGE_DEVICE_NAME = 4,
+            MESSAGE_DEVICE_NAME = 4,
             MESSAGE_CONNECTION_FAILED = 6,
             MESSAGE_CONNECTION_LOST = 7,
             STATE_NONE = 0,
