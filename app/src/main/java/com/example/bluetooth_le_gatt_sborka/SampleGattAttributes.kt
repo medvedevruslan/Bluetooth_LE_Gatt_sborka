@@ -1,6 +1,6 @@
 package com.example.bluetooth_le_gatt_sborka
 
-import java.util.HashMap
+import java.util.*
 
 /**
  * Этот класс включает небольшое подмножество стандартных атрибутов GATT
@@ -16,10 +16,8 @@ object SampleGattAttributes {
     const val FFF1_CHARACTERISTIC = "0000fff1-0000-1000-8000-00805f9b34fb"
     const val FFF2_CHARACTERISTIC = "0000fff2-0000-1000-8000-00805f9b34fb"
     const val FFF0_SERVICE = "0000fff0-0000-1000-8000-00805f9b34fb"
-    const val TESTO_SMART_PYROMETER_ADDRESS = "40:BD:32:A0:6E:D6"
     const val MICROLIFE_THERMOMETER_ADDRESS = "18:7A:93:BC:6D:80"
     const val MANOMETER_ADDRESS = "34:14:B5:B1:30:C3"
-    const val TO_TESTO_HEX_1 = "5600030000000c69023e81"
 
     init {
         //характеристики, скачанные с Bluetooth SIG Specification

@@ -1,10 +1,10 @@
 package com.example.bluetooth_le_gatt_sborka.device_scan_appcompatactivity
 
-import androidx.appcompat.app.AppCompatDialogFragment
-import android.os.Bundle
 import android.app.Dialog
 import android.content.DialogInterface
+import android.os.Bundle
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatDialogFragment
 
 class DialogFragment(private val pp: PermissionsProcessing) : AppCompatDialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {

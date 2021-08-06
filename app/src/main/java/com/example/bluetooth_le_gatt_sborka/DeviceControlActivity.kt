@@ -45,7 +45,8 @@ class DeviceControlActivity : AppCompatActivity() {
                     invalidateOptionsMenu()
                 }
                 BluetoothLEService.ACTION_DATA_AVAILABLE ->
-                    intent.getStringExtra(BluetoothLEService.MEASUREMENTS_DATA)?.let { displayMeasurements(it) }
+                    intent.getStringExtra(BluetoothLEService.MEASUREMENTS_DATA)
+                        ?.let { displayMeasurements(it) }
             }
         }
     }
@@ -55,6 +56,7 @@ class DeviceControlActivity : AppCompatActivity() {
     /**
      * Код для управления жизненным циклом службы
      */
+    @ExperimentalUnsignedTypes
     private val serviceConnection: ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             bluetoothLEService = (service as LocalBinder).service
@@ -70,6 +72,7 @@ class DeviceControlActivity : AppCompatActivity() {
         }
     }
 
+    @ExperimentalUnsignedTypes
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.result)
@@ -85,6 +88,7 @@ class DeviceControlActivity : AppCompatActivity() {
         bindService(gattServiceIntent, serviceConnection, BIND_AUTO_CREATE)
     }
 
+    @ExperimentalUnsignedTypes
     override fun onResume() {
         super.onResume()
         // registerReceiver - регистрация приемника BroadcastReceiver
@@ -98,6 +102,7 @@ class DeviceControlActivity : AppCompatActivity() {
         unregisterReceiver(gattUpdateReceiver)
     }
 
+    @ExperimentalUnsignedTypes
     override fun onDestroy() {
         super.onDestroy()
         // отсоединение от сервиса

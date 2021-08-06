@@ -21,6 +21,7 @@ class BluetoothLEService : Service() {
 
     //Реализация методов обратного вызова для событий GATT,
     //о которых заботится приложение. Например, изменение подключения и обнаружение служб.
+    @ExperimentalUnsignedTypes
     private val gattCallback: BluetoothGattCallback = object : BluetoothGattCallback() {
         //при изменении состояния подключения
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
@@ -113,6 +114,16 @@ class BluetoothLEService : Service() {
         sendBroadcast(intent)
     }
 
+    /** Функция, преобразующая массив беззнаковых байтов в строку формата: &#91;uByte1, uByte2,..&#93; */
+    @ExperimentalUnsignedTypes
+    private fun toString(uByte: UByteArray): String {
+        var string = "["
+        uByte.forEach { string += "$it, " }
+        string = "${string.substring(0, string.length - 2)}]"
+        return string
+    }
+
+    @ExperimentalUnsignedTypes
     private fun broadcastUpdate(characteristic: BluetoothGattCharacteristic) {
         val intent = Intent(ACTION_DATA_AVAILABLE)
 
@@ -136,31 +147,37 @@ class BluetoothLEService : Service() {
             )
             intent.putExtra(EXTRA_DATA, heartRate.toString())
         } else {
-            val data = characteristic.value
-            if (data != null && data.isNotEmpty()) {
-                //Для всех остальных профилей записывает данные в формате HEX
-                Log.d(
-                    TAG,
-                    "oncharacteristicChanged | $characteristic.uuid.toString() | ${Arrays.toString(data)}"
-                )
-                when {
-                    BLOOD_PRESSURE_MEASUREMENT == characteristic.uuid -> { // manometer
-                        val measurementsFromByte: String = if (data.size >= 14) "SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[14] else "SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[7]
-                        intent.putExtra(MEASUREMENTS_DATA, measurementsFromByte)
-                    }
-                    SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS == bluetoothGatt!!.device.address -> {
-                        Log.d(TAG, "characteristic changed on Microlife device")
-                        val thermometerMeasureData = ThermometerMeasureData(this)
-                        val handleValueThread = Runnable {
-                            val message = Message.obtain()
-                            message.obj = characteristic.value
-                            thermometerMeasureData.thermoHandler.handleMessage(message)
+            if (characteristic.value != null) {
+                val data = characteristic.value.toUByteArray()
+                if (data.isNotEmpty()) {
+                    //Для всех остальных профилей записывает данные в формате HEX
+                    Log.d(
+                        TAG,
+                        "oncharacteristicChanged | $characteristic.uuid.toString() | ${toString(data)}"
+                    )
+                    when {
+                        BLOOD_PRESSURE_MEASUREMENT == characteristic.uuid -> { // manometer
+                            val measurementsFromByte: String =
+                                if (data.size >= 14) "SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[14] else "SYS: " + data[1] + ". DYA: " + data[3] + ". PULSE: " + data[7]
+                            intent.putExtra(MEASUREMENTS_DATA, measurementsFromByte)
                         }
-                        val handleValueFromCharacteristic = Thread(handleValueThread)
-                        handleValueFromCharacteristic.start()
-                    }
-                    else -> {
-                        Log.d(TAG, "подключаемое устройство не поддерживается данным приложением")
+                        SampleGattAttributes.MICROLIFE_THERMOMETER_ADDRESS == bluetoothGatt!!.device.address -> {
+                            Log.d(TAG, "characteristic changed on Microlife device")
+                            val thermometerMeasureData = ThermometerMeasureData(this)
+                            val handleValueThread = Runnable {
+                                val message = Message.obtain()
+                                message.obj = characteristic.value
+                                thermometerMeasureData.thermoHandler.handleMessage(message)
+                            }
+                            val handleValueFromCharacteristic = Thread(handleValueThread)
+                            handleValueFromCharacteristic.start()
+                        }
+                        else -> {
+                            Log.d(
+                                TAG,
+                                "подключаемое устройство не поддерживается данным приложением"
+                            )
+                        }
                     }
                 }
             }
@@ -193,6 +210,7 @@ class BluetoothLEService : Service() {
      * Результат подключения передается асинхроннос помощью обратного
      * вызова `BluetoothGattCallback#onConnectionStateChange (android.bluetooth.BluetoothGatt, int, int)`.
      */
+    @ExperimentalUnsignedTypes
     fun connect(deviceAddress: String): Boolean {
         bluetoothDeviceAddress = deviceAddress
         if (bluetoothAdapter == null) {
@@ -307,7 +325,10 @@ class BluetoothLEService : Service() {
         return checkingForIndication
     }
 
-    private fun setIndication(characteristic: BluetoothGattCharacteristic, enable: Boolean): Boolean {
+    private fun setIndication(
+        characteristic: BluetoothGattCharacteristic,
+        enable: Boolean
+    ): Boolean {
         val isSuccess = bluetoothGatt!!.setCharacteristicNotification(characteristic, enable)
         val descriptor =
             characteristic.getDescriptor(UUID.fromString(SampleGattAttributes.CLIENT_CHARACTERISTIC_CONFIG))

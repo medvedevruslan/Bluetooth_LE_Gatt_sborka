@@ -10,6 +10,7 @@ import java.util.*
 
 class ThermometerMeasureData(private val context: Context) {
     lateinit var hexString: StringBuilder
+
     @JvmField
     var thermoHandler: Handler = object : Handler(Looper.getMainLooper()) {
         override fun handleMessage(message: Message) {
@@ -58,7 +59,7 @@ class ThermometerMeasureData(private val context: Context) {
         }
     }
 
-    fun parseMeasurement(i: Int): Int {
+    private fun parseMeasurement(i: Int): Int {
         val parseInt = hexString.substring(0, i).toInt(16)
         hexString.delete(0, i)
         return parseInt
@@ -105,21 +106,19 @@ class ThermometerMeasureData(private val context: Context) {
         val format = String.format("%04x", str2.length / 2 + 1 + 1)
         // Log.d(TAG, "buildCmdStringForThermo = " + "4DFE" + format + str + str2 + calcChecksum(HEADER, DEVICE_CODE_THERMO_APP_REPLY, format, str, str2));
         return "4DFE$format$str$str2" + calcChecksum(
-            HEADER,
-            DEVICE_CODE_THERMO_APP_REPLY,
             format,
             str,
             str2
         )
     }
 
-    fun calcChecksum(str: String, str2: String, str3: String, str4: String, str5: String): String {
+    private fun calcChecksum(str3: String, str4: String, str5: String): String {
 /*        Log.d(TAG, "calcChecksum cmd = " + str4);
         Log.d(TAG, "calcChecksum lengthstr = " + str3);
         Log.d(TAG, "calcChecksum  data = " + str5);*/
         return try {
-            var parseInt = str.toInt(16)
-            val str6 = str2 + str3 + str4 + str5
+            var parseInt = HEADER.toInt(16)
+            val str6 = DEVICE_CODE_THERMO_APP_REPLY + str3 + str4 + str5
             // Log.d(TAG, "calcChecksum AllData = " + str6);
             val length = str6.length
             var i = 0
